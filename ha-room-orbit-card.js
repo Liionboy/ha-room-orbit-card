@@ -1,5 +1,5 @@
 const TYPE = 'ha-room-orbit-card';
-const VERSION = '1.0.0';
+const VERSION = '1.1.0';
 const PALETTES = ['aurora', 'ocean', 'sunset', 'lavender'];
 const DOMAINS = ['light', 'switch', 'input_boolean', 'cover', 'sensor', 'binary_sensor'];
 const DEFAULTS = { title: 'Room Orbit', icon: 'mdi:sofa', palette: 'aurora', read_only: false };
@@ -10,17 +10,15 @@ const domain = (id) => String(id || '').split('.')[0];
 const icon = (name) => '<ha-icon icon="' + esc(name) + '"></ha-icon>';
 const STYLE = [
  ':host{display:block;min-width:0;max-width:100%;color:var(--primary-text-color,#202b3c)}*{box-sizing:border-box}',
- 'ha-card{display:block;container:room-orbit/inline-size;width:100%;min-width:0;max-width:100%;overflow:hidden;border:1px solid var(--divider-color,#dfe5eb);border-radius:24px;background:var(--ha-card-background,var(--card-background-color,#fff));box-shadow:var(--ha-card-box-shadow,0 12px 34px #14233716);--accent:#078f72;--accent2:#27b7b0;--accent3:#54a9db}',
+ 'ha-card{display:block;container:room-orbit/inline-size;width:100%;min-width:0;max-width:100%;overflow:hidden;border:1px solid color-mix(in srgb,var(--divider-color,#dfe5eb) 65%,transparent);border-radius:20px;background:var(--ha-card-background,var(--card-background-color,#fff));box-shadow:var(--ha-card-box-shadow,0 2px 5px #14233716);--accent:#078f72;--accent2:#27b7b0;--accent3:#54a9db}',
  'ha-card[data-palette=ocean]{--accent:#1477c9;--accent2:#22a7c7;--accent3:#6b68d8}ha-card[data-palette=sunset]{--accent:#df5d42;--accent2:#ee973f;--accent3:#cf5d9e}ha-card[data-palette=lavender]{--accent:#8059c7;--accent2:#b56cc8;--accent3:#4c9bc7}',
- '.shell{position:relative;padding:20px;background:radial-gradient(ellipse at 0 0,color-mix(in srgb,var(--accent) 13%,transparent),transparent 65%)}.shell:before{content:"";position:absolute;top:0;left:22px;right:22px;height:3px;background:linear-gradient(90deg,var(--accent),var(--accent2),var(--accent3));border-radius:0 0 6px 6px}',
- '.header{display:flex;align-items:center;justify-content:space-between;gap:10px}.identity{min-width:0}.eyebrow{font-size:9px;font-weight:800;letter-spacing:.15em;color:var(--accent)}h2{margin:5px 0 0;font-size:22px;letter-spacing:-.035em;overflow-wrap:anywhere}.pill{display:flex;align-items:center;gap:7px;flex:none;border-radius:99px;padding:7px 10px;background:color-mix(in srgb,var(--accent) 9%,transparent);font-size:11px;color:var(--secondary-text-color,#637080)}.pill.active{color:var(--accent)}.dot{width:7px;height:7px;border-radius:50%;background:currentColor}',
- '.overview{display:grid;grid-template-columns:114px minmax(0,1fr);align-items:center;gap:18px;margin:20px 0}.orbit{position:relative;display:grid;place-items:center;width:110px;aspect-ratio:1;border:1px solid color-mix(in srgb,var(--accent) 22%,transparent);border-radius:50%;background:conic-gradient(from 35deg,color-mix(in srgb,var(--accent) 24%,transparent),transparent 45%,color-mix(in srgb,var(--accent2) 24%,transparent));color:var(--accent)}.orbit:before{content:"";position:absolute;inset:9px;border:1px dashed color-mix(in srgb,var(--accent) 34%,transparent);border-radius:50%}.orbit-core{display:grid;place-items:center;width:72px;height:72px;border-radius:50%;background:var(--card-background-color,#fff);box-shadow:0 6px 24px color-mix(in srgb,var(--accent) 13%,transparent)}.orbit ha-icon{--mdc-icon-size:38px}.orbit.active:after{content:"";position:absolute;right:3px;top:23px;width:9px;height:9px;border-radius:50%;background:var(--accent2);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent2) 15%,transparent)}',
- '.telemetry{min-width:0;display:grid;gap:8px}.reading{display:flex;align-items:center;gap:9px;min-width:0;padding:9px 11px;border:1px solid color-mix(in srgb,var(--divider-color,#dfe5eb) 75%,transparent);border-radius:13px;background:color-mix(in srgb,var(--card-background-color,#fff) 92%,var(--accent))}.reading ha-icon{color:var(--accent);--mdc-icon-size:20px}.reading-label{font-size:10px;color:var(--secondary-text-color,#637080)}.reading-value{margin-left:auto;min-width:0;font-size:20px;font-weight:800;letter-spacing:-.035em;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}',
- 'button{font:inherit;cursor:pointer;color:inherit}button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}button:disabled{cursor:not-allowed;opacity:.45}.info{width:100%;text-align:left}.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.tile{min-width:0;padding:12px;border:1px solid var(--divider-color,#dfe5eb);border-radius:16px;background:color-mix(in srgb,var(--card-background-color,#fff) 96%,var(--accent))}.tile.active{border-color:color-mix(in srgb,var(--accent) 42%,var(--divider-color,#dfe5eb));background:color-mix(in srgb,var(--card-background-color,#fff) 90%,var(--accent))}.tile-head{display:flex;align-items:center;gap:8px;border:0;background:none;padding:0;text-align:left;width:100%;min-width:0}.tile-head ha-icon{flex:none;--mdc-icon-size:22px;color:var(--accent)}.tile-copy{min-width:0}.tile-name{display:block;font-size:12px;font-weight:750;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tile-state{display:block;font-size:11px;margin-top:4px;color:var(--secondary-text-color,#637080);overflow-wrap:anywhere}',
- '.actions{display:flex;gap:5px;margin-top:10px}.action{display:grid;place-items:center;flex:1;min-width:0;min-height:38px;padding:6px;border:1px solid color-mix(in srgb,var(--accent) 20%,var(--divider-color,#dfe5eb));border-radius:11px;background:color-mix(in srgb,var(--accent) 8%,var(--card-background-color,#fff));color:var(--accent);transition:background .15s ease}.action ha-icon{--mdc-icon-size:20px}.action:hover:not(:disabled){background:color-mix(in srgb,var(--accent) 17%,var(--card-background-color,#fff))}',
- '.footer{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px;font-size:10px;color:var(--secondary-text-color,#637080)}.hint{font-size:12px;line-height:1.6;color:var(--secondary-text-color,#637080)}.error{margin-top:12px;font-size:12px;color:var(--error-color,#c74343)}',
- '@container room-orbit (max-width:330px){.shell{padding:14px}.overview{grid-template-columns:80px minmax(0,1fr);gap:10px}.orbit{width:78px}.orbit-core{width:54px;height:54px}.orbit ha-icon{--mdc-icon-size:29px}.reading{padding:8px;gap:5px}.reading-label{font-size:9px}.reading-value{font-size:17px}.pill{font-size:10px;padding:6px 8px}h2{font-size:19px}.tiles{gap:7px}.tile{padding:10px}.footer{flex-wrap:wrap}}@container room-orbit (max-width:230px){.tiles{grid-template-columns:1fr}.overview{grid-template-columns:1fr}.orbit{justify-self:center}.header{align-items:flex-start;flex-direction:column}}@media(prefers-reduced-motion:reduce){.action{transition:none}}',
-].join('\n');
+ '.shell{position:relative;padding:12px;background:radial-gradient(ellipse at 0 0,color-mix(in srgb,var(--accent) 5%,transparent),transparent 80%)}.shell:before{content:"";position:absolute;top:0;left:20px;right:20px;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent2),var(--accent3));border-radius:0 0 4px 4px}',
+ 'button{font:inherit;color:inherit;cursor:pointer}button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}button:disabled{cursor:not-allowed;opacity:.45}.summary{display:grid;grid-template-columns:minmax(0,1fr) 92px;align-items:center;gap:10px;min-height:92px}.summary.no-shortcuts{grid-template-columns:1fr}.identity{min-width:0}.room-icon{position:relative;display:grid;place-items:center;width:40px;height:40px;padding:0;border:0;border-radius:50%;background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent)}.room-icon ha-icon{--mdc-icon-size:23px}.dot{position:absolute;right:-1px;bottom:1px;width:9px;height:9px;border:2px solid var(--card-background-color,#fff);border-radius:50%;background:var(--secondary-text-color,#637080)}.room-icon.occupied .dot{background:var(--accent)}h2{margin:7px 0 2px;font-size:14px;font-weight:750;line-height:17px;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+ '.telemetry{display:flex;flex-wrap:wrap;column-gap:8px;row-gap:0;min-width:0}.reading{display:inline-flex;align-items:center;gap:3px;border:0;background:none;padding:0;min-width:0;max-width:100%;font-size:11px;line-height:16px;color:var(--secondary-text-color,#637080)}.reading ha-icon{flex:none;--mdc-icon-size:12px;color:var(--accent)}.reading-value{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;font-variant-numeric:tabular-nums}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}',
+ '.shortcuts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;align-content:center}.shortcuts.count-1,.shortcuts.count-2{grid-template-columns:1fr}.quick{position:relative;display:grid;place-items:center;min-width:0;height:44px;padding:0;border:0;border-radius:13px;background:color-mix(in srgb,var(--secondary-text-color,#637080) 7%,var(--card-background-color,#fff));color:var(--secondary-text-color,#637080)}.quick ha-icon{--mdc-icon-size:21px}.quick.active{background:color-mix(in srgb,var(--accent) 15%,var(--card-background-color,#fff));color:var(--accent)}.quick .busy{position:absolute;inset:auto 0 2px;text-align:center;font-size:9px}.quick:hover:not(:disabled),.action:hover:not(:disabled){filter:brightness(.96)}',
+ '.tiles{display:grid;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid var(--divider-color,#dfe5eb)}.tile{display:flex;align-items:center;gap:8px;min-width:0}.tile-head{display:flex;align-items:center;gap:7px;border:0;background:none;padding:4px 0;min-width:0;flex:1;text-align:left}.tile-head ha-icon{flex:none;color:var(--accent);--mdc-icon-size:19px}.tile-copy{min-width:0}.tile-name{display:block;font-size:11px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tile-state{display:block;margin-top:2px;font-size:10px;line-height:13px;color:var(--secondary-text-color,#637080);overflow-wrap:anywhere}.actions{display:flex;gap:3px;flex:none}.action{display:grid;place-items:center;width:32px;height:38px;padding:0;border:0;border-radius:10px;background:color-mix(in srgb,var(--accent) 10%,var(--card-background-color,#fff));color:var(--accent)}.action ha-icon{--mdc-icon-size:18px}.hint{margin:0;font-size:10px;line-height:15px;color:var(--secondary-text-color,#637080)}.error{margin-top:8px;font-size:11px;color:var(--error-color,#c74343)}',
+ '@container room-orbit (max-width:220px){.shell{padding:10px}.summary{position:relative;grid-template-columns:minmax(0,1fr) 76px;gap:6px;padding-top:19px}.quick{height:40px;border-radius:11px}.shortcuts{gap:3px}.tile{flex-wrap:wrap}.actions{margin-left:auto}.room-icon{width:36px;height:36px}h2{position:absolute;top:0;left:0;right:0;margin:0;font-size:13px}.reading{font-size:10px}}@media(prefers-reduced-motion:reduce){button{transition:none}}',
+].join('');
 
 class RoomOrbitCard extends HTMLElement {
  static getStubConfig() { return { ...DEFAULTS }; }
@@ -43,7 +41,7 @@ class RoomOrbitCard extends HTMLElement {
  }
  constructor() {
   super(); this.attachShadow({ mode: 'open' }); this._config = { ...DEFAULTS };
-  this._busy = new Set(); this._error = ''; this._signature = '';
+  this._busy = new Set(); this._error = ''; this._signature = ''; this._expanded = false;
   this.shadowRoot.addEventListener('click', (event) => {
    const button = event.composedPath().find((el) => el?.dataset?.action);
    if (button && !button.disabled) void this._activate(button.dataset.entity, button.dataset.action);
@@ -56,12 +54,12 @@ class RoomOrbitCard extends HTMLElement {
   for (const key of ['temperature_entity', 'humidity_entity']) if (config[key] && domain(config[key]) !== 'sensor') throw new Error(key + ' must be a sensor.');
   if (config.presence_entity && domain(config.presence_entity) !== 'binary_sensor') throw new Error('Presence must be a binary sensor.');
   this._config = { ...DEFAULTS, ...config, palette: PALETTES.includes(config.palette) ? config.palette : 'aurora', read_only: config.read_only === true };
-  this._error = ''; this._signature = ''; this._update();
+  this._error = ''; this._signature = ''; this._expanded = false; this._update();
  }
  set hass(value) { this._hass = value; this._update(); }
  get hass() { return this._hass; }
- getCardSize() { return 5; }
- getGridOptions() { return { columns: 12, min_columns: 6 }; }
+ getCardSize() { return this._expanded ? 4 : 2; }
+ getGridOptions() { return { columns: 6, min_columns: 6 }; }
  _ids() { return [...new Set(FIELDS.map((key) => this._config[key]).filter(Boolean))]; }
  _state(id) { return this._hass?.states?.[id]; }
  _format(state) {
@@ -87,7 +85,7 @@ class RoomOrbitCard extends HTMLElement {
  }
  _update() {
   if (!this._hass) return;
-  const signature = JSON.stringify([this._config, this._hass.locale, this._hass.language, this._ids().map((id) => [id, this._state(id), this._actions(id)]), [...this._busy], this._error]);
+  const signature = JSON.stringify([this._config, this._hass.locale, this._hass.language, this._ids().map((id) => [id, this._state(id), this._actions(id)]), [...this._busy], this._error, this._expanded]);
   if (signature === this._signature) return;
   this._signature = signature; this._render();
  }
@@ -96,24 +94,33 @@ class RoomOrbitCard extends HTMLElement {
   const c = this._config, presence = this._state(c.presence_entity);
   const occupied = available(presence) && presence.state === 'on';
   const status = !c.presence_entity ? 'Room overview' : !available(presence) ? 'Presence unknown' : occupied ? 'Occupied' : 'Clear';
-  const readings = [['temperature_entity', 'Temperature', 'mdi:thermometer'], ['humidity_entity', 'Humidity', 'mdi:water-percent']].filter(([field]) => c[field]).map(([field, label, image]) => this._infoButton(c[field], icon(image) + '<span class="reading-label">' + label + '</span><span class="reading-value">' + esc(this._format(this._state(c[field]))) + '</span>', 'reading info')).join('');
-  const shortcuts = [1, 2, 3, 4].filter((i) => c['entity_' + i]).map((i) => {
+  const readings = [['temperature_entity', 'Temperature', 'mdi:thermometer'], ['humidity_entity', 'Humidity', 'mdi:water-percent']].filter(([field]) => c[field]).map(([field, label, image]) => this._infoButton(c[field], icon(image) + '<span class="sr-only">' + label + ': </span><span class="reading-value">' + esc(this._format(this._state(c[field]))) + '</span>', 'reading')).join('');
+  const slots = [1, 2, 3, 4].filter((i) => c['entity_' + i]).map((i) => {
    const id = c['entity_' + i], s = this._state(id), d = domain(id);
    const image = c['icon_' + i] || s?.attributes?.icon || ({ light: 'mdi:lightbulb', cover: 'mdi:window-shutter', switch: 'mdi:power-socket-eu', input_boolean: 'mdi:toggle-switch', binary_sensor: 'mdi:motion-sensor' })[d] || 'mdi:chart-line';
    const active = available(s) && ['on', 'open', 'opening', 'closing'].includes(s.state);
    const name = c['name_' + i] || s?.attributes?.friendly_name || id;
-   let state = this._format(s);
-   const position = s?.attributes?.current_position;
+   let state = this._format(s); const position = s?.attributes?.current_position;
    if (d === 'cover' && available(s) && typeof position === 'number' && Number.isFinite(position) && position >= 0 && position <= 100) state += ' · ' + position + '% open';
-   const actions = this._actions(id);
-   const buttons = actions.map((a) => '<button class="action" data-entity="' + esc(id) + '" data-action="' + a.action + '" aria-label="' + a.label + ': ' + esc(name) + '" title="' + a.label + '" ' + (this._busy.has(id) ? 'disabled aria-busy="true"' : '') + '>' + icon(a.icon) + '</button>').join('');
-   return '<article class="tile ' + (active ? 'active' : '') + '">' + this._infoButton(id, icon(image) + '<span class="tile-copy"><span class="tile-name" title="' + esc(name) + '">' + esc(name) + '</span><span class="tile-state">' + esc(state) + '</span></span>', 'tile-head') + (buttons ? '<div class="actions">' + buttons + '</div>' : '') + '</article>';
+   return { id, image, active, name, state, actions: this._actions(id) };
+  });
+  const quick = slots.map((slot) => {
+   const toggle = slot.actions.some((a) => a.action === 'toggle');
+   const action = toggle ? 'toggle' : slot.actions.length ? 'expand' : 'info';
+   const label = (toggle ? 'Toggle: ' : action === 'expand' ? 'Show controls: ' : 'More information: ') + slot.name + ' · ' + slot.state;
+   return '<button class="quick ' + (slot.active ? 'active' : '') + '" data-entity="' + esc(slot.id) + '" data-action="' + action + '" aria-label="' + esc(label) + '" title="' + esc(label) + '"' + (action === 'expand' ? ' aria-expanded="' + (this._expanded === true || this._expanded === slot.id) + '"' : '') + (this._busy.has(slot.id) ? ' disabled aria-busy="true"' : '') + '>' + icon(slot.image) + (this._busy.has(slot.id) ? '<span class="busy">…</span>' : '') + '</button>';
   }).join('');
-  const count = [1, 2, 3, 4].filter((i) => c['entity_' + i]).length;
-  this.shadowRoot.innerHTML = '<style>' + STYLE + '</style><ha-card data-palette="' + c.palette + '"><div class="shell"><header class="header"><div class="identity"><div class="eyebrow">ROOM · ORBIT</div><h2>' + esc(c.title || DEFAULTS.title) + '</h2></div><span class="pill ' + (occupied ? 'active' : '') + '"><span class="dot"></span>' + status + '</span></header><section class="overview"><div class="orbit ' + (occupied ? 'active' : '') + '" aria-hidden="true"><div class="orbit-core">' + icon(c.icon || DEFAULTS.icon) + '</div></div><div class="telemetry">' + (readings || '<p class="hint">Choose room sensors and shortcuts in the card editor.</p>') + '</div></section>' + (shortcuts ? '<section class="tiles" aria-label="Room shortcuts">' + shortcuts + '</section>' : '<p class="hint">Add up to four shortcuts: lights, covers, switches, helpers or sensors.</p>') + (this._error ? '<div class="error" role="alert">' + esc(this._error) + '</div>' : '') + '<footer class="footer"><span>' + count + ' shortcut' + (count === 1 ? '' : 's') + '</span><span>' + (c.read_only ? 'Read-only' : 'Live Home Assistant data') + '</span></footer></div></ha-card>';
+  const details = this._expanded ? slots.filter((slot) => this._expanded === true || this._expanded === slot.id).map((slot) => {
+   const buttons = slot.actions.map((a) => '<button class="action" data-entity="' + esc(slot.id) + '" data-action="' + a.action + '" aria-label="' + a.label + ': ' + esc(slot.name) + '" title="' + a.label + '" ' + (this._busy.has(slot.id) ? 'disabled aria-busy="true"' : '') + '>' + icon(a.icon) + '</button>').join('');
+   return '<article class="tile">' + this._infoButton(slot.id, icon(slot.image) + '<span class="tile-copy"><span class="tile-name" title="' + esc(slot.name) + '">' + esc(slot.name) + '</span><span class="tile-state">' + esc(slot.state) + '</span></span>', 'tile-head') + (buttons ? '<div class="actions">' + buttons + '</div>' : '') + '</article>';
+  }).join('') : '';
+  const title = c.title || DEFAULTS.title;
+  this.shadowRoot.innerHTML = '<style>' + STYLE + '</style><ha-card data-palette="' + c.palette + '"><div class="shell"><div class="summary ' + (!slots.length ? 'no-shortcuts' : '') + '"><div class="identity"><button class="room-icon ' + (occupied ? 'occupied' : '') + '" data-action="details" data-entity="" aria-label="' + (this._expanded ? 'Hide' : 'Show') + ' room details: ' + esc(title) + '" aria-expanded="' + !!this._expanded + '" title="' + status + ' · Room details">' + icon(c.icon || DEFAULTS.icon) + (c.presence_entity ? '<span class="dot"></span>' : '') + '</button><h2 title="' + esc(title) + '">' + esc(title) + '</h2><span class="sr-only">' + status + '</span><div class="telemetry">' + (readings || '<span class="hint">' + status + '</span>') + '</div></div>' + (slots.length ? '<section class="shortcuts count-' + slots.length + '" aria-label="Room shortcuts">' + quick + '</section>' : '') + '</div>' + (details ? '<section class="tiles" aria-label="Room details">' + details + '</section>' : '') + (!slots.length && !readings ? '<p class="hint">Add up to four shortcuts in the card editor.</p>' : '') + (this._error ? '<div class="error" role="alert">' + esc(this._error) + '</div>' : '') + '</div></ha-card>';
  }
  async _activate(id, action) {
+  if (action === 'details' && id === '') { this._expanded = !this._expanded; this._update(); return; }
   if (!this._ids().includes(id)) return;
+  if (action === 'expand' && this._actions(id).length) { this._expanded = this._expanded === id ? false : id; this._update(); return; }
   if (action === 'info') { this.dispatchEvent(new CustomEvent('hass-more-info', { detail: { entityId: id }, bubbles: true, composed: true })); return; }
   if (this._busy.has(id) || !this._actions(id).some((a) => a.action === action)) return;
   this._busy.add(id); this._error = ''; this._update();

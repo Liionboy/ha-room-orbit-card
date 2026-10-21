@@ -26,7 +26,9 @@ function setup(config = {}) {
 test('selected telemetry, occupancy and cover position', () => {
  const { card } = setup(); const html = card.shadowRoot.innerHTML;
  for (const text of ['22.4 °C', '48 %', 'Occupied', '65% open', 'Room light']) assert.ok(html.includes(text));
- assert.equal((html.match(/class="action"/g) || []).length, 4);
+ assert.equal((html.match(/class="quick /g) || []).length, 2);
+ assert.doesNotMatch(html, /class="tiles"|<footer|class="overview"/);
+ assert.equal(card.getCardSize(), 2);
 });
 test('empty configuration has editor hints', () => {
  const card = new Card(); card.setConfig({}); card.hass = { states: {} }; assert.match(card.shadowRoot.innerHTML, /Add up to four shortcuts/);
@@ -98,4 +100,12 @@ test('manifest, version and registration agree', () => {
  const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url)));
  assert.equal(manifest.filename, pkg.name + '.js'); assert.ok(source.includes("const VERSION = '" + pkg.version + "'"));
  assert.equal(context.window.customCards[0].type, 'ha-room-orbit-card');
+});
+test('details expand on demand without services and retain cover controls', async () => {
+ const { card, calls } = setup();
+ await card._activate('cover.room', 'expand'); assert.match(card.shadowRoot.innerHTML, /class="tiles"/);
+ assert.equal((card.shadowRoot.innerHTML.match(/class="action"/g) || []).length, 3);
+ assert.equal(calls.length, 0); await card._activate('cover.room', 'expand'); assert.doesNotMatch(card.shadowRoot.innerHTML, /class="tiles"/);
+ await card._activate('', 'details'); assert.equal((card.shadowRoot.innerHTML.match(/class="action"/g) || []).length, 4);
+ await card._activate('', 'details'); assert.equal(card.getCardSize(), 2);
 });

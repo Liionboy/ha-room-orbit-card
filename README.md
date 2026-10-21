@@ -1,14 +1,15 @@
 # Room Orbit Card
 
-A standalone Home Assistant room summary in the Orbit visual style. Select your own temperature, humidity and occupancy sensors, plus up to four room shortcuts. No personal entities, external assets or runtime dependencies are bundled.
+A compact Home Assistant room tile in the Orbit visual style. Select your own temperature, humidity and occupancy sensors, plus up to four room shortcuts. No personal entities, external assets or runtime dependencies are bundled.
 
 ## Features
 
-- Room name, icon, decorative Orbit ring and occupancy indicator.
+- Compact room icon, room name, inline readings and occupancy dot. No large ring, metric panels or footer.
 - Temperature and humidity with Home Assistant sensor units.
 - Four optional shortcuts, each with an entity, custom name and icon.
 - Light, switch and input-boolean toggles; cover Open / Stop / Close controls gated by supported features and registered services.
-- Sensor and binary-sensor shortcuts are informational. Click any tile heading or reading for Home Assistant More Info.
+- Quick buttons toggle lights, switches and helpers. A cover shortcut expands its supported controls; informational shortcuts open More Info.
+- Tap the room icon to show/hide detailed names, states, More Info headings and all supported controls. Readings also open More Info. Details are collapsed by default.
 - Read-only mode, unavailable-entity handling, duplicate-call protection and visible action errors.
 - Aurora, Ocean, Sunset and Lavender palettes, HA light/dark themes, container-responsive layout and reduced-motion support.
 - Complete visual configuration form (Home Assistant 2026.6+); YAML is also supported.
@@ -48,6 +49,8 @@ read_only: false
 ~~~
 
 All fields are optional. For shortcuts 1–4, use entity_N, name_N and icon_N. Supported domains: light, switch, input_boolean, cover, sensor, binary_sensor. Names and icons default to entity metadata. Unknown palettes fall back to Aurora. Enable read_only to hide device actions while preserving More Info.
+
+Version 1.1.0 keeps existing YAML unchanged. The default tile targets roughly 116–128 px height with four shortcuts, including narrow two-column phone grids. Full names are available in the expandable details and accessible button labels. The Sections default is six columns; existing dashboard row/height overrides may still need to be set to Auto. A parent stack or fixed grid can constrain any card independently of its own layout.
 
 Cover position is shown only when a numeric current_position from 0 to 100 is supplied; 100 means fully open according to HA. The card does not guess unavailable states or cover features. Tilt-only covers remain informational unless they also support open/close actions.
 
