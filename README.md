@@ -13,6 +13,7 @@ A compact Home Assistant room tile in the Orbit visual style. Select your own te
 - Read-only mode, unavailable-entity handling, duplicate-call protection and visible action errors.
 - Aurora, Ocean, Sunset and Lavender palettes, HA light/dark themes, container-responsive layout and reduced-motion support.
 - Complete visual configuration form (Home Assistant 2026.6+); YAML is also supported.
+- Optional room-view navigation: set navigation_path in the visual editor or YAML, then tap the room name or free card background. Quick buttons, readings and the details icon keep their own actions.
 
 This is a room overview, not a replacement for full light/color or cover-position cards. No discovery or area-wide bulk actions: only explicitly configured entities are shown or controlled. A motion sensor reports its current detection state, not guaranteed long-term occupancy.
 
@@ -32,6 +33,7 @@ Replace every sample entity with one from your own installation:
 ~~~yaml
 type: custom:ha-room-orbit-card
 title: Living room
+navigation_path: /dashboard-home/living-room
 icon: mdi:sofa
 palette: aurora
 temperature_entity: sensor.room_temperature
@@ -49,6 +51,8 @@ read_only: false
 ~~~
 
 All fields are optional. For shortcuts 1–4, use entity_N, name_N and icon_N. Supported domains: light, switch, input_boolean, cover, sensor, binary_sensor. Names and icons default to entity metadata. Unknown palettes fall back to Aurora. Enable read_only to hide device actions while preserving More Info.
+
+For navigation, copy the path from the browser address bar while the target room view is open (for example /dashboard-home/living-room or /lovelace/living-room). The example is not auto-discovery: use your dashboard's actual path, which may include a different view slug or numeric index. Only local paths beginning with a single slash are accepted. Leave navigation_path empty to disable navigation. The room icon still expands details, sensors open More Info, and controls never trigger navigation. Keyboard focus/Enter and native modified-link clicks are supported. Read-only mode does not block navigation.
 
 Version 1.1.0 keeps existing YAML unchanged. The default tile targets roughly 116–128 px height with four shortcuts, including narrow two-column phone grids. Full names are available in the expandable details and accessible button labels. The Sections default is six columns; existing dashboard row/height overrides may still need to be set to Auto. A parent stack or fixed grid can constrain any card independently of its own layout.
 

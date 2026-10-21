@@ -109,3 +109,33 @@ test('details expand on demand without services and retain cover controls', asyn
  await card._activate('', 'details'); assert.equal((card.shadowRoot.innerHTML.match(/class="action"/g) || []).length, 4);
  await card._activate('', 'details'); assert.equal(card.getCardSize(), 2);
 });
+test('room navigation pushes local path and emits HA routing event once', async () => {
+ const { card, calls } = setup({ navigation_path: '/dashboard-home/living-room' });
+ const pushed = [], events = [];
+ context.window.location = { pathname: '/dashboard-home/rooms', search: '', hash: '' };
+ context.window.history = { pushState: (...args) => pushed.push(args) };
+ context.window.dispatchEvent = (event) => events.push(event);
+ assert.match(card.shadowRoot.innerHTML, /href="\/dashboard-home\/living-room"/);
+ await card._activate('', 'navigate'); assert.equal(pushed.length, 1); assert.equal(pushed[0][2], '/dashboard-home/living-room');
+ assert.equal(pushed[0][0].from, '/dashboard-home/rooms'); assert.equal(events[0].type, 'location-changed'); assert.equal(events[0].detail.replace, false);
+ await card._activate('light.room', 'toggle'); await card._activate('sensor.temperature', 'info');
+ assert.equal(pushed.length, 1); assert.equal(calls.length, 1);
+});
+test('navigation is optional, read-only compatible and rejects external URLs', async () => {
+ const { card } = setup(); assert.doesNotMatch(card.shadowRoot.innerHTML, /class="room-navigation"/);
+ for (const path of ['https://example.com', '//example.com/x', '/' + String.fromCharCode(92) + 'evil', 'javascript:alert(1)', '/bad path', {}]) assert.throws(() => card.setConfig({ navigation_path: path }));
+ const { card: readonly } = setup({ read_only: true, navigation_path: '/lovelace/living-room?mode=room#lights' });
+ assert.match(readonly.shadowRoot.innerHTML, /class="room-navigation"/);
+ let pushed = 0; context.window.history = { pushState: () => pushed++ };
+ await readonly._activate('', 'navigate'); assert.equal(pushed, 1);
+ context.window.location = { pathname: '/lovelace/living-room', search: '?mode=room', hash: '#lights' };
+ await readonly._activate('', 'navigate'); assert.equal(pushed, 1);
+});
+test('delegated navigation respects modified native link clicks', () => {
+ const { card } = setup({ navigation_path: '/lovelace/living-room' }); let prevented = 0, navigated = 0;
+ card._navigate = () => navigated++;
+ const target = { dataset: { action: 'navigate', entity: '' } };
+ const event = { composedPath: () => [target], preventDefault: () => prevented++ };
+ card.shadowRoot.listeners.click({ ...event, ctrlKey: true }); assert.equal(navigated, 0);
+ card.shadowRoot.listeners.click(event); assert.equal(navigated, 1); assert.equal(prevented, 1);
+});

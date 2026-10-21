@@ -6,6 +6,8 @@ const browser = await chromium.launch({ headless: true, ...(process.env.CHROMIUM
 const page = await browser.newPage({ viewport: { width: 1000, height: 900 } });
 const errors = []; page.on('pageerror', (e) => errors.push(String(e)));
 try {
+ await page.route('http://room-orbit.test/**', (route) => route.fulfill({ contentType: 'text/html', body: '<html></html>' }));
+ await page.goto('http://room-orbit.test/dashboard-home/rooms');
  await page.setContent('<style>body{font:14px Arial;margin:8px;background:#f4f6f8}#grid{display:grid;gap:8px;grid-template-columns:1fr;width:440px}#container{min-width:0}body.dark{background:#111820;--card-background-color:#1b2532;--primary-text-color:#e8eef5;--secondary-text-color:#a0b0c2;--divider-color:#344252}</style><div id="grid"><div id="container"></div></div>');
  await page.evaluate(() => {
   customElements.define('ha-card', class extends HTMLElement {});
@@ -14,7 +16,7 @@ try {
  await page.addScriptTag({ content: readFileSync(new URL('../ha-room-orbit-card.js', import.meta.url), 'utf8') });
  await page.evaluate(() => {
   const card = document.createElement('ha-room-orbit-card'); window.card = card; window.calls = []; window.infos = [];
-  card.setConfig({ title: 'Living room', temperature_entity: 'sensor.temperature', humidity_entity: 'sensor.humidity', presence_entity: 'binary_sensor.occupancy', entity_1: 'light.room', entity_2: 'cover.room', entity_3: 'switch.room', entity_4: 'binary_sensor.window' });
+  card.setConfig({ title: 'Living room', navigation_path: '/dashboard-home/living-room', temperature_entity: 'sensor.temperature', humidity_entity: 'sensor.humidity', presence_entity: 'binary_sensor.occupancy', entity_1: 'light.room', entity_2: 'cover.room', entity_3: 'switch.room', entity_4: 'binary_sensor.window' });
   const s = (state, attributes = {}) => ({ state, attributes });
   window.mockHass = { language: 'en', services: { light: { toggle: {} }, cover: { open_cover: {}, stop_cover: {}, close_cover: {} }, switch: { toggle: {} } }, states: {
    'sensor.temperature': s('24.7', { unit_of_measurement: '°C' }), 'sensor.humidity': s('65.1', { unit_of_measurement: '%' }), 'binary_sensor.occupancy': s('off'),
@@ -71,5 +73,17 @@ try {
  await measure('dark');
  await page.evaluate(() => { window.card.setConfig({ ...window.card._config, read_only: true }); });
  assert.equal(await page.locator('ha-room-orbit-card .quick[data-action="toggle"]').count(), 0);
+ // Read-only still permits routing. Shortcut and details clicks above must not navigate.
+ assert.equal(new URL(page.url()).pathname, '/dashboard-home/rooms');
+ await page.evaluate(() => { window.routes = []; window.addEventListener('location-changed', (e) => window.routes.push(e.detail)); });
+ await page.locator('ha-room-orbit-card .room-navigation').click({ position: { x: 100, y: 20 } });
+ assert.equal(new URL(page.url()).pathname, '/dashboard-home/living-room');
+ assert.equal(await page.evaluate(() => window.routes.length), 1);
+ assert.deepEqual(await page.evaluate(() => window.history.state), { from: '/dashboard-home/rooms' });
+ await page.evaluate(() => { window.history.replaceState({}, '', '/dashboard-home/rooms'); });
+ await page.locator('ha-room-orbit-card .room-navigation').focus(); await page.keyboard.press('Enter');
+ assert.equal(new URL(page.url()).pathname, '/dashboard-home/living-room');
+ assert.equal(await page.evaluate(() => window.routes.length), 2);
+ console.log('Background tap and keyboard navigation, local URL and HA routing event: PASS');
  assert.deepEqual(errors, []); console.log('Quick actions, cover details, More Info, dark theme and read-only: PASS');
 } finally { await browser.close(); }

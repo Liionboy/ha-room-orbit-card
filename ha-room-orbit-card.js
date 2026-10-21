@@ -1,8 +1,8 @@
 const TYPE = 'ha-room-orbit-card';
-const VERSION = '1.1.0';
+const VERSION = '1.2.0';
 const PALETTES = ['aurora', 'ocean', 'sunset', 'lavender'];
 const DOMAINS = ['light', 'switch', 'input_boolean', 'cover', 'sensor', 'binary_sensor'];
-const DEFAULTS = { title: 'Room Orbit', icon: 'mdi:sofa', palette: 'aurora', read_only: false };
+const DEFAULTS = { title: 'Room Orbit', icon: 'mdi:sofa', palette: 'aurora', read_only: false, navigation_path: '' };
 const FIELDS = ['temperature_entity', 'humidity_entity', 'presence_entity', 'entity_1', 'entity_2', 'entity_3', 'entity_4'];
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const available = (s) => !!s && !['unknown', 'unavailable', 'none', ''].includes(String(s.state).toLowerCase());
@@ -19,6 +19,7 @@ const STYLE = [
  '.tiles{display:grid;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid var(--divider-color,#dfe5eb)}.tile{display:flex;align-items:center;gap:8px;min-width:0}.tile-head{display:flex;align-items:center;gap:7px;border:0;background:none;padding:4px 0;min-width:0;flex:1;text-align:left}.tile-head ha-icon{flex:none;color:var(--accent);--mdc-icon-size:19px}.tile-copy{min-width:0}.tile-name{display:block;font-size:11px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tile-state{display:block;margin-top:2px;font-size:10px;line-height:13px;color:var(--secondary-text-color,#637080);overflow-wrap:anywhere}.actions{display:flex;gap:3px;flex:none}.action{display:grid;place-items:center;width:32px;height:38px;padding:0;border:0;border-radius:10px;background:color-mix(in srgb,var(--accent) 10%,var(--card-background-color,#fff));color:var(--accent)}.action ha-icon{--mdc-icon-size:18px}.hint{margin:0;font-size:10px;line-height:15px;color:var(--secondary-text-color,#637080)}.error{margin-top:8px;font-size:11px;color:var(--error-color,#c74343)}',
  '@container room-orbit (max-width:220px){.shell{padding:10px}.summary{position:relative;grid-template-columns:minmax(0,1fr) 76px;gap:6px;padding-top:19px}.quick{height:40px;border-radius:11px}.shortcuts{gap:3px}.tile{flex-wrap:wrap}.actions{margin-left:auto}.room-icon{width:36px;height:36px}h2{position:absolute;top:0;left:0;right:0;margin:0;font-size:13px}.reading{font-size:10px}}@media(prefers-reduced-motion:reduce){button{transition:none}}',
 ].join('');
+const NAV_STYLE = '.summary{position:relative}.room-navigation{position:absolute;inset:0;z-index:1;border-radius:12px}.room-navigation:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.room-icon,.reading,.quick{position:relative;z-index:2}';
 
 class RoomOrbitCard extends HTMLElement {
  static getStubConfig() { return { ...DEFAULTS }; }
@@ -27,6 +28,7 @@ class RoomOrbitCard extends HTMLElement {
    { name: 'title', selector: { text: {} } }, { name: 'icon', selector: { icon: {} } },
    { name: 'palette', selector: { select: { options: PALETTES, mode: 'dropdown' } } },
    { name: 'read_only', selector: { boolean: {} } },
+   { name: 'navigation_path', selector: { text: {} } },
    { name: 'temperature_entity', selector: { entity: { domain: 'sensor' } } },
    { name: 'humidity_entity', selector: { entity: { domain: 'sensor' } } },
    { name: 'presence_entity', selector: { entity: { domain: 'binary_sensor' } } },
@@ -36,7 +38,7 @@ class RoomOrbitCard extends HTMLElement {
    { name: 'name_' + i, selector: { text: {} } },
    { name: 'icon_' + i, selector: { icon: {} } },
   );
-  const labels = { title: 'Room name', icon: 'Room icon', palette: 'Orbit palette', read_only: 'Read-only mode', temperature_entity: 'Temperature sensor', humidity_entity: 'Humidity sensor', presence_entity: 'Occupancy / motion sensor' };
+  const labels = { navigation_path: 'Room view path (e.g. /dashboard-home/living-room)', title: 'Room name', icon: 'Room icon', palette: 'Orbit palette', read_only: 'Read-only mode', temperature_entity: 'Temperature sensor', humidity_entity: 'Humidity sensor', presence_entity: 'Occupancy / motion sensor' };
   return { schema, computeLabel: ({ name }) => labels[name] || name.replace(/^(entity|name|icon)_(\d)$/, (_, field, i) => 'Shortcut ' + i + ' · ' + field) };
  }
  constructor() {
@@ -44,11 +46,17 @@ class RoomOrbitCard extends HTMLElement {
   this._busy = new Set(); this._error = ''; this._signature = ''; this._expanded = false;
   this.shadowRoot.addEventListener('click', (event) => {
    const button = event.composedPath().find((el) => el?.dataset?.action);
-   if (button && !button.disabled) void this._activate(button.dataset.entity, button.dataset.action);
+   if (!button || button.disabled) return;
+   if (button.dataset.action === 'navigate') {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+   }
+   void this._activate(button.dataset.entity, button.dataset.action);
   });
  }
  setConfig(config) {
   if (!config || typeof config !== 'object' || Array.isArray(config)) throw new Error('Room Orbit requires an object configuration.');
+  if (config.navigation_path && (typeof config.navigation_path !== 'string' || !/^\/(?!\/)[^\s\\]*$/.test(config.navigation_path))) throw new Error('navigation_path must be a local path such as /dashboard-home/living-room.');
   for (const key of FIELDS) if (config[key] && (typeof config[key] !== 'string' || !/^[a-z_]+\.[a-z0-9_]+$/.test(config[key]))) throw new Error(key + ' must be an entity ID.');
   for (let i = 1; i <= 4; i++) if (config['entity_' + i] && !DOMAINS.includes(domain(config['entity_' + i]))) throw new Error('Shortcut ' + i + ' has an unsupported entity domain.');
   for (const key of ['temperature_entity', 'humidity_entity']) if (config[key] && domain(config[key]) !== 'sensor') throw new Error(key + ' must be a sensor.');
@@ -115,9 +123,10 @@ class RoomOrbitCard extends HTMLElement {
    return '<article class="tile">' + this._infoButton(slot.id, icon(slot.image) + '<span class="tile-copy"><span class="tile-name" title="' + esc(slot.name) + '">' + esc(slot.name) + '</span><span class="tile-state">' + esc(slot.state) + '</span></span>', 'tile-head') + (buttons ? '<div class="actions">' + buttons + '</div>' : '') + '</article>';
   }).join('') : '';
   const title = c.title || DEFAULTS.title;
-  this.shadowRoot.innerHTML = '<style>' + STYLE + '</style><ha-card data-palette="' + c.palette + '"><div class="shell"><div class="summary ' + (!slots.length ? 'no-shortcuts' : '') + '"><div class="identity"><button class="room-icon ' + (occupied ? 'occupied' : '') + '" data-action="details" data-entity="" aria-label="' + (this._expanded ? 'Hide' : 'Show') + ' room details: ' + esc(title) + '" aria-expanded="' + !!this._expanded + '" title="' + status + ' · Room details">' + icon(c.icon || DEFAULTS.icon) + (c.presence_entity ? '<span class="dot"></span>' : '') + '</button><h2 title="' + esc(title) + '">' + esc(title) + '</h2><span class="sr-only">' + status + '</span><div class="telemetry">' + (readings || '<span class="hint">' + status + '</span>') + '</div></div>' + (slots.length ? '<section class="shortcuts count-' + slots.length + '" aria-label="Room shortcuts">' + quick + '</section>' : '') + '</div>' + (details ? '<section class="tiles" aria-label="Room details">' + details + '</section>' : '') + (!slots.length && !readings ? '<p class="hint">Add up to four shortcuts in the card editor.</p>' : '') + (this._error ? '<div class="error" role="alert">' + esc(this._error) + '</div>' : '') + '</div></ha-card>';
+  this.shadowRoot.innerHTML = '<style>' + STYLE + NAV_STYLE + '</style><ha-card data-palette="' + c.palette + '"><div class="shell"><div class="summary ' + (!slots.length ? 'no-shortcuts' : '') + '">' + (c.navigation_path ? '<a class="room-navigation" data-action="navigate" data-entity="" href="' + esc(c.navigation_path) + '" aria-label="Open room view: ' + esc(title) + '"><span class="sr-only">Open ' + esc(title) + '</span></a>' : '') + '<div class="identity"><button class="room-icon ' + (occupied ? 'occupied' : '') + '" data-action="details" data-entity="" aria-label="' + (this._expanded ? 'Hide' : 'Show') + ' room details: ' + esc(title) + '" aria-expanded="' + !!this._expanded + '" title="' + status + ' · Room details">' + icon(c.icon || DEFAULTS.icon) + (c.presence_entity ? '<span class="dot"></span>' : '') + '</button><h2 title="' + esc(title) + '">' + esc(title) + '</h2><span class="sr-only">' + status + '</span><div class="telemetry">' + (readings || '<span class="hint">' + status + '</span>') + '</div></div>' + (slots.length ? '<section class="shortcuts count-' + slots.length + '" aria-label="Room shortcuts">' + quick + '</section>' : '') + '</div>' + (details ? '<section class="tiles" aria-label="Room details">' + details + '</section>' : '') + (!slots.length && !readings ? '<p class="hint">Add up to four shortcuts in the card editor.</p>' : '') + (this._error ? '<div class="error" role="alert">' + esc(this._error) + '</div>' : '') + '</div></ha-card>';
  }
  async _activate(id, action) {
+  if (action === 'navigate' && id === '') { this._navigate(); return; }
   if (action === 'details' && id === '') { this._expanded = !this._expanded; this._update(); return; }
   if (!this._ids().includes(id)) return;
   if (action === 'expand' && this._actions(id).length) { this._expanded = this._expanded === id ? false : id; this._update(); return; }
@@ -127,6 +136,16 @@ class RoomOrbitCard extends HTMLElement {
   try { await this._hass.callService(domain(id), action, { entity_id: id }); }
   catch { this._error = 'The action could not be sent. Check Home Assistant and try again.'; }
   finally { this._busy.delete(id); this._update(); }
+ }
+ _navigate() {
+  const path = this._config.navigation_path;
+  if (!path) return;
+  const current = window.location.pathname + window.location.search + window.location.hash;
+  if (current === path) return;
+  try {
+   window.history.pushState({ from: current }, '', path);
+   window.dispatchEvent(new CustomEvent('location-changed', { detail: { replace: false } }));
+  } catch { this._error = 'The room view could not be opened. Check the navigation path.'; this._update(); }
  }
 }
 if (!customElements.get(TYPE)) customElements.define(TYPE, RoomOrbitCard);
