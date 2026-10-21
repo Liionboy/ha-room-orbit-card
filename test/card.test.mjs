@@ -139,3 +139,42 @@ test('delegated navigation respects modified native link clicks', () => {
  card.shadowRoot.listeners.click({ ...event, ctrlKey: true }); assert.equal(navigated, 0);
  card.shadowRoot.listeners.click(event); assert.equal(navigated, 1); assert.equal(prevented, 1);
 });
+test('thermostat shows Heating then Idle while HVAC mode remains heat', () => {
+ const { card } = setup({ climate_entity: 'climate.room' });
+ card.hass.states['climate.room'] = state('heat', { hvac_action: 'heating' }); card._update();
+ assert.match(card.shadowRoot.innerHTML, /class="climate-status heating"/); assert.match(card.shadowRoot.innerHTML, />Heating</);
+ card.hass.states['climate.room'].attributes.hvac_action = 'idle'; card._update();
+ assert.match(card.shadowRoot.innerHTML, /class="climate-status idle"/); assert.match(card.shadowRoot.innerHTML, />Idle</);
+ assert.equal(card.hass.states['climate.room'].state, 'heat');
+});
+test('missing or unrecognized action never implies Heating or Idle', () => {
+ const { card } = setup({ climate_entity: 'climate.room' });
+ card.hass.states['climate.room'] = state('heat'); card._update();
+ assert.equal(card._climate('climate.room').label, 'Heat mode'); assert.equal(card._climate('climate.room').kind, 'unknown');
+ card.hass.states['climate.room'].attributes.hvac_action = 'unexpected'; card._update();
+ assert.equal(card._climate('climate.room').label, 'Action unknown');
+});
+test('thermostat handles off, cooling, unavailable and other native actions', () => {
+ const { card } = setup({ climate_entity: 'climate.room' });
+ for (const action of ['off', 'cooling', 'drying', 'fan', 'preheating', 'defrosting']) {
+  card.hass.states['climate.room'] = state('auto', { hvac_action: action }); card._update(); assert.equal(card._climate('climate.room').kind, action);
+ }
+ card.hass.states['climate.room'] = state('unavailable', { hvac_action: 'heating' }); card._update();
+ assert.equal(card._climate('climate.room').kind, 'unavailable');
+ delete card.hass.states['climate.room']; card._update(); assert.equal(card._climate('climate.room').label, 'Unavailable');
+});
+test('thermostat badge opens More Info without services or navigation', async () => {
+ const { card, calls } = setup({ climate_entity: 'climate.room', read_only: true, navigation_path: '/lovelace/room' });
+ card.hass.states['climate.room'] = state('heat', { hvac_action: 'idle' }); card._update();
+ await card._activate('climate.room', 'info'); assert.equal(card.event.detail.entityId, 'climate.room'); assert.equal(calls.length, 0);
+ await card._activate('climate.room', 'toggle'); assert.equal(calls.length, 0);
+});
+test('climate can occupy a shortcut and never uses hvac_mode as active heating', () => {
+ const { card } = setup({ entity_1: 'climate.room' });
+ card.hass.states['climate.room'] = state('heat', { hvac_action: 'idle' }); card._update(); assert.match(card.shadowRoot.innerHTML, /Idle/);
+ assert.equal(card._actions('climate.room').length, 0);
+ card.hass.states['climate.room'].attributes.hvac_action = 'heating'; card._update(); assert.match(card.shadowRoot.innerHTML, /quick active climate-shortcut heating/);
+ assert.match(card.shadowRoot.innerHTML, /class="quick-climate-label">Heating</);
+ assert.throws(() => card.setConfig({ climate_entity: 'switch.room' }));
+ assert.ok(Card.getConfigForm().schema.some((field) => field.name === 'climate_entity' && field.selector.entity.domain === 'climate'));
+});

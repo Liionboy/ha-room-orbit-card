@@ -85,5 +85,35 @@ try {
  assert.equal(new URL(page.url()).pathname, '/dashboard-home/living-room');
  assert.equal(await page.evaluate(() => window.routes.length), 2);
  console.log('Background tap and keyboard navigation, local URL and HA routing event: PASS');
+ await page.evaluate(() => {
+  window.card.hass = { ...window.card.hass, states: { ...window.card.hass.states, 'climate.room': { state: 'heat', attributes: { hvac_action: 'heating' } } } };
+  window.card.setConfig({ ...window.card._config, climate_entity: 'climate.room' });
+ });
+ assert.equal(await page.locator('ha-room-orbit-card .climate-label').textContent(), 'Heating');
+ await measure('thermostat-heating');
+ const heatingColor = await page.locator('ha-room-orbit-card .climate-status').evaluate((el) => getComputedStyle(el).color);
+ await page.evaluate(() => { window.card.hass.states['climate.room'].attributes.hvac_action = 'idle'; window.card.hass = { ...window.card.hass }; });
+ assert.equal(await page.locator('ha-room-orbit-card .climate-label').textContent(), 'Idle');
+ const idleColor = await page.locator('ha-room-orbit-card .climate-status').evaluate((el) => getComputedStyle(el).color);
+ assert.notEqual(heatingColor, idleColor);
+ const routes = await page.evaluate(() => window.routes.length);
+ await page.locator('ha-room-orbit-card .climate-status').click();
+ assert.equal(await page.evaluate(() => window.infos.at(-1).entityId), 'climate.room');
+ assert.equal(await page.evaluate(() => window.routes.length), routes);
+ await page.setViewportSize({ width: 360, height: 800 });
+ await page.evaluate(() => { const grid = document.querySelector('#grid'); grid.style.width = '100%'; grid.style.gridTemplateColumns = 'repeat(2,minmax(0,1fr))'; });
+ await measure('phone-360-thermostat-idle');
+ await page.evaluate(() => { window.card.hass.states['climate.room'].attributes.hvac_action = 'heating'; window.card.hass = { ...window.card.hass }; });
+ await measure('phone-360-thermostat-heating');
+ const badge = await page.locator('ha-room-orbit-card .climate-label').evaluate((el) => ({ scroll: el.scrollWidth, client: el.clientWidth }));
+ assert.ok(badge.scroll <= badge.client + 1, 'Thermostat status must stay fully visible');
+ console.log('Thermostat Heating/Idle transitions, color, More Info and compact phone layout: PASS');
+ await page.evaluate(() => { window.card.setConfig({ ...window.card._config, climate_entity: '', entity_3: 'climate.room' }); });
+ assert.equal(await page.locator('ha-room-orbit-card .quick-climate-label').textContent(), 'Heating');
+ const shortcut = await page.locator('ha-room-orbit-card .quick-climate-label').evaluate((el) => ({ scroll: el.scrollWidth, client: el.clientWidth }));
+ assert.ok(shortcut.scroll <= shortcut.client + 1, 'Heating label must fit climate shortcut');
+ await page.locator('ha-room-orbit-card .quick[data-entity="climate.room"]').click();
+ assert.equal(await page.evaluate(() => window.infos.at(-1).entityId), 'climate.room');
+ await measure('phone-360-climate-shortcut');
  assert.deepEqual(errors, []); console.log('Quick actions, cover details, More Info, dark theme and read-only: PASS');
 } finally { await browser.close(); }
