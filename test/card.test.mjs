@@ -178,3 +178,45 @@ test('climate can occupy a shortcut and never uses hvac_mode as active heating',
  assert.throws(() => card.setConfig({ climate_entity: 'switch.room' }));
  assert.ok(Card.getConfigForm().schema.some((field) => field.name === 'climate_entity' && field.selector.entity.domain === 'climate'));
 });
+test('temperature colors are opt-in and preserve the chosen palette by default', () => {
+ const { card } = setup({ palette: 'lavender' }); card.hass.states['sensor.temperature'].state = '30'; card._update();
+ assert.equal(card._temperatureEffect(), 'normal'); assert.match(card.shadowRoot.innerHTML, /data-palette="lavender" data-temperature="normal"/);
+});
+test('default thresholds: below 22 cold, 22 to below 25 normal, 25+ warm', () => {
+ const { card } = setup({ temperature_effect: true });
+ for (const [value, expected] of [[21.9, 'cold'], [22, 'normal'], [24.9, 'normal'], [25, 'warm'], [25.1, 'warm']]) {
+  card.hass.states['sensor.temperature'].state = String(value); card._update();
+  assert.equal(card._temperatureEffect(), expected); assert.ok(card.shadowRoot.innerHTML.includes('data-temperature="' + expected + '"'));
+ }
+});
+test('temperature thresholds are configurable and validate order and numbers', () => {
+ const { card } = setup({ temperature_effect: true, temperature_cold_below: 20, temperature_warm_from: 26 });
+ card.hass.states['sensor.temperature'].state = '25'; assert.equal(card._temperatureEffect(), 'normal');
+ card.hass.states['sensor.temperature'].state = '19.9'; assert.equal(card._temperatureEffect(), 'cold');
+ for (const config of [{ temperature_cold_below: 25, temperature_warm_from: 25 }, { temperature_cold_below: 26 }, { temperature_warm_from: Infinity }, { temperature_cold_below: '22' }, { temperature_warm_from: NaN }]) assert.throws(() => card.setConfig(config));
+});
+test('Fahrenheit and Kelvin are normalized without boundary drift', () => {
+ const { card } = setup({ temperature_effect: true });
+ for (const [value, unit, expected] of [[71.6, '°F', 'normal'], [77, '°F', 'warm'], [70, '°F', 'cold'], [298.15, 'K', 'warm'], [295.15, 'K', 'normal']]) {
+  card.hass.states['sensor.temperature'] = state(String(value), { unit_of_measurement: unit }); card._update(); assert.equal(card._temperatureEffect(), expected);
+ }
+});
+test('missing, invalid and unitless temperatures never activate color effects', () => {
+ const { card } = setup({ temperature_effect: true });
+ for (const s of [undefined, state('unavailable', { unit_of_measurement: '°C' }), state('unknown'), state(''), state('abc', { unit_of_measurement: '°C' }), state('30'), state('30', { unit_of_measurement: '%' })]) {
+  card.hass.states['sensor.temperature'] = s; card._update(); assert.equal(card._temperatureEffect(), 'normal');
+ }
+});
+test('temperature effect does not change HVAC activity and sends no commands', async () => {
+ const { card, calls } = setup({ temperature_effect: true, climate_entity: 'climate.room', temperature_animation: false });
+ card.hass.states['sensor.temperature'].state = '21'; card.hass.states['climate.room'] = state('heat', { hvac_action: 'heating' }); card._update();
+ assert.equal(card._temperatureEffect(), 'cold'); assert.equal(card._climate('climate.room').label, 'Heating');
+ assert.match(card.shadowRoot.innerHTML, /data-temperature-animation="false"/);
+ card.hass.states['sensor.temperature'].state = '26'; card.hass.states['climate.room'].attributes.hvac_action = 'idle'; card._update();
+ assert.equal(card._temperatureEffect(), 'warm'); assert.equal(card._climate('climate.room').label, 'Idle'); assert.equal(calls.length, 0);
+});
+test('temperature effect editor exposes booleans and Celsius thresholds', () => {
+ const schema = Card.getConfigForm().schema;
+ for (const name of ['temperature_effect', 'temperature_animation']) assert.ok(schema.find((f) => f.name === name).selector.boolean);
+ for (const name of ['temperature_cold_below', 'temperature_warm_from']) assert.equal(schema.find((f) => f.name === name).selector.number.unit_of_measurement, '°C');
+});

@@ -15,6 +15,7 @@ A compact Home Assistant room tile in the Orbit visual style. Select your own te
 - Complete visual configuration form (Home Assistant 2026.6+); YAML is also supported.
 - Optional room-view navigation: set navigation_path in the visual editor or YAML, then tap the room name or free card background. Quick buttons, readings and the details icon keep their own actions.
 - Optional thermostat indicator: climate_entity shows real HVAC action, including Heating (warm highlight), Idle (neutral) and Off. Tap it for native HA More Info. No thermostat commands are sent by this card.
+- Optional temperature colors and a gentle glow: below the cold threshold the room uses blue/cyan accents; at or above the warm threshold it uses orange accents. The normal range keeps the selected Orbit palette. Animation can be disabled and respects reduced-motion preferences.
 
 This is a room overview, not a replacement for full light/color or cover-position cards. No discovery or area-wide bulk actions: only explicitly configured entities are shown or controlled. A motion sensor reports its current detection state, not guaranteed long-term occupancy.
 
@@ -53,6 +54,21 @@ read_only: false
 ~~~
 
 All fields are optional. For shortcuts 1–4, use entity_N, name_N and icon_N. Supported domains: light, switch, input_boolean, cover, sensor, binary_sensor, climate. Names and icons default to entity metadata. Unknown palettes fall back to Aurora. Enable read_only to hide device actions while preserving More Info.
+
+### Temperature colors
+
+Enable in the visual editor, or add these fields to an existing card:
+
+~~~yaml
+temperature_effect: true
+temperature_cold_below: 22
+temperature_warm_from: 25
+temperature_animation: true
+~~~
+
+The effect reads only the configured temperature_entity sensor. Thresholds are always in Celsius: defaults are cold below 22°C and warm from 25°C (inclusive). Exactly 22°C is normal. A sensor in °F or K is converted for comparison; its displayed unit stays unchanged. Missing, unavailable, nonnumeric or unsupported-unit readings keep the normal palette. No thermostat setpoint, HVAC mode or service is changed. Temperature color is independent of the thermostat's Heating/Idle action.
+
+The feature is opt-in (temperature_effect defaults to false). Set temperature_animation to false for static colors; the operating system's Reduce motion preference always disables the pulse. The 3.8-second low-contrast glow does not change tile dimensions or block taps. The cold threshold must be lower than the warm threshold.
 
 For navigation, copy the path from the browser address bar while the target room view is open (for example /dashboard-home/living-room or /lovelace/living-room). The example is not auto-discovery: use your dashboard's actual path, which may include a different view slug or numeric index. Only local paths beginning with a single slash are accepted. Leave navigation_path empty to disable navigation. The room icon still expands details, sensors open More Info, and controls never trigger navigation. Keyboard focus/Enter and native modified-link clicks are supported. Read-only mode does not block navigation.
 

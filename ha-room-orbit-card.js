@@ -1,8 +1,8 @@
 const TYPE = 'ha-room-orbit-card';
-const VERSION = '1.3.0';
+const VERSION = '1.4.0';
 const PALETTES = ['aurora', 'ocean', 'sunset', 'lavender'];
 const DOMAINS = ['light', 'switch', 'input_boolean', 'cover', 'sensor', 'binary_sensor', 'climate'];
-const DEFAULTS = { title: 'Room Orbit', icon: 'mdi:sofa', palette: 'aurora', read_only: false, navigation_path: '' };
+const DEFAULTS = { title: 'Room Orbit', icon: 'mdi:sofa', palette: 'aurora', read_only: false, navigation_path: '', temperature_effect: false, temperature_animation: true, temperature_cold_below: 22, temperature_warm_from: 25 };
 const FIELDS = ['temperature_entity', 'humidity_entity', 'presence_entity', 'climate_entity', 'entity_1', 'entity_2', 'entity_3', 'entity_4'];
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const available = (s) => !!s && !['unknown', 'unavailable', 'none', ''].includes(String(s.state).toLowerCase());
@@ -21,6 +21,13 @@ const STYLE = [
 ].join('');
 const NAV_STYLE = '.summary{position:relative}.room-navigation{position:absolute;inset:0;z-index:1;border-radius:12px}.room-navigation:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.room-icon,.reading,.quick{position:relative;z-index:2}';
 const CLIMATE_STYLE = '.quick.climate-shortcut{display:flex;flex-direction:column;gap:1px}.quick.climate-shortcut ha-icon{--mdc-icon-size:17px}.quick-climate-label{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9px;line-height:11px}.climate-status{position:relative;z-index:2;display:inline-flex;align-items:center;gap:3px;max-width:100%;height:16px;margin-top:2px;padding:0 4px;border:0;border-radius:6px;background:color-mix(in srgb,var(--secondary-text-color,#637080) 8%,transparent);color:var(--secondary-text-color,#637080);font-size:10px;line-height:16px;white-space:nowrap}.climate-status ha-icon{flex:none;--mdc-icon-size:12px}.climate-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.climate-status.heating,.quick.heating{color:var(--error-color,#db5546);background:color-mix(in srgb,var(--error-color,#db5546) 14%,var(--card-background-color,#fff))}.climate-status.cooling,.quick.cooling{color:var(--info-color,#2389ce);background:color-mix(in srgb,var(--info-color,#2389ce) 12%,var(--card-background-color,#fff))}';
+const TEMPERATURE_STYLE = [
+ 'ha-card[data-temperature=warm]{--accent:#de7136;--accent2:#e6a23d;--accent3:#d45d52}ha-card[data-temperature=cold]{--accent:#287ec8;--accent2:#38a6d2;--accent3:#6674cc}',
+ 'ha-card[data-temperature=warm] .shell,ha-card[data-temperature=cold] .shell{background:radial-gradient(ellipse at 0 0,color-mix(in srgb,var(--accent) 15%,transparent),transparent 88%)}',
+ 'ha-card[data-temperature=warm] .shell:after,ha-card[data-temperature=cold] .shell:after{content:"";position:absolute;inset:0;border-radius:inherit;border:1px solid color-mix(in srgb,var(--accent) 45%,transparent);box-shadow:inset 0 0 18px color-mix(in srgb,var(--accent) 10%,transparent);opacity:.5;pointer-events:none}',
+ 'ha-card[data-temperature-animation=true][data-temperature=warm] .shell:after,ha-card[data-temperature-animation=true][data-temperature=cold] .shell:after{animation:room-temperature-glow 3.8s ease-in-out infinite}',
+ '@keyframes room-temperature-glow{0%,100%{opacity:.25}50%{opacity:.7}}@media(prefers-reduced-motion:reduce){ha-card[data-temperature] .shell:after{animation:none!important}}',
+].join('');
 
 class RoomOrbitCard extends HTMLElement {
  static getStubConfig() { return { ...DEFAULTS }; }
@@ -31,6 +38,10 @@ class RoomOrbitCard extends HTMLElement {
    { name: 'read_only', selector: { boolean: {} } },
    { name: 'navigation_path', selector: { text: {} } },
    { name: 'temperature_entity', selector: { entity: { domain: 'sensor' } } },
+   { name: 'temperature_effect', selector: { boolean: {} } },
+   { name: 'temperature_animation', selector: { boolean: {} } },
+   { name: 'temperature_cold_below', selector: { number: { min: -50, max: 60, step: 0.5, mode: 'box', unit_of_measurement: '°C' } } },
+   { name: 'temperature_warm_from', selector: { number: { min: -50, max: 60, step: 0.5, mode: 'box', unit_of_measurement: '°C' } } },
    { name: 'humidity_entity', selector: { entity: { domain: 'sensor' } } },
    { name: 'presence_entity', selector: { entity: { domain: 'binary_sensor' } } },
    { name: 'climate_entity', selector: { entity: { domain: 'climate' } } },
@@ -40,7 +51,7 @@ class RoomOrbitCard extends HTMLElement {
    { name: 'name_' + i, selector: { text: {} } },
    { name: 'icon_' + i, selector: { icon: {} } },
   );
-  const labels = { climate_entity: 'Room thermostat (optional)', navigation_path: 'Room view path (e.g. /dashboard-home/living-room)', title: 'Room name', icon: 'Room icon', palette: 'Orbit palette', read_only: 'Read-only mode', temperature_entity: 'Temperature sensor', humidity_entity: 'Humidity sensor', presence_entity: 'Occupancy / motion sensor' };
+  const labels = { temperature_effect: 'Temperature colors (opt-in)', temperature_animation: 'Animate warm/cold glow', temperature_cold_below: 'Cold below (°C)', temperature_warm_from: 'Warm from (°C)', climate_entity: 'Room thermostat (optional)', navigation_path: 'Room view path (e.g. /dashboard-home/living-room)', title: 'Room name', icon: 'Room icon', palette: 'Orbit palette', read_only: 'Read-only mode', temperature_entity: 'Temperature sensor', humidity_entity: 'Humidity sensor', presence_entity: 'Occupancy / motion sensor' };
   return { schema, computeLabel: ({ name }) => labels[name] || name.replace(/^(entity|name|icon)_(\d)$/, (_, field, i) => 'Shortcut ' + i + ' · ' + field) };
  }
  constructor() {
@@ -64,7 +75,12 @@ class RoomOrbitCard extends HTMLElement {
   for (const key of ['temperature_entity', 'humidity_entity']) if (config[key] && domain(config[key]) !== 'sensor') throw new Error(key + ' must be a sensor.');
   if (config.presence_entity && domain(config.presence_entity) !== 'binary_sensor') throw new Error('Presence must be a binary sensor.');
   if (config.climate_entity && domain(config.climate_entity) !== 'climate') throw new Error('climate_entity must be a climate entity.');
+  for (const key of ['temperature_cold_below', 'temperature_warm_from']) if (config[key] != null && (typeof config[key] !== 'number' || !Number.isFinite(config[key]))) throw new Error(key + ' must be a finite number in Celsius.');
+  const cold = config.temperature_cold_below ?? DEFAULTS.temperature_cold_below;
+  const warm = config.temperature_warm_from ?? DEFAULTS.temperature_warm_from;
+  if (cold >= warm) throw new Error('The cold threshold must be lower than the warm threshold.');
   this._config = { ...DEFAULTS, ...config, palette: PALETTES.includes(config.palette) ? config.palette : 'aurora', read_only: config.read_only === true };
+  Object.assign(this._config, { temperature_effect: config.temperature_effect === true, temperature_animation: config.temperature_animation !== false, temperature_cold_below: cold, temperature_warm_from: warm });
   this._error = ''; this._signature = ''; this._expanded = false; this._update();
  }
  set hass(value) { this._hass = value; this._update(); }
@@ -73,6 +89,15 @@ class RoomOrbitCard extends HTMLElement {
  getGridOptions() { return { columns: 6, min_columns: 6 }; }
  _ids() { return [...new Set(FIELDS.map((key) => this._config[key]).filter(Boolean))]; }
  _state(id) { return this._hass?.states?.[id]; }
+ _temperatureEffect() {
+  if (!this._config.temperature_effect) return 'normal';
+  const s = this._state(this._config.temperature_entity);
+  if (!available(s) || String(s.state).trim() === '') return 'normal';
+  const n = Number(s.state), unit = s.attributes?.unit_of_measurement;
+  if (!Number.isFinite(n) || !['°C', '°F', 'K'].includes(unit)) return 'normal';
+  const celsius = Math.round((unit === '°F' ? (n - 32) * 5 / 9 : unit === 'K' ? n - 273.15 : n) * 1e6) / 1e6;
+  return celsius < this._config.temperature_cold_below ? 'cold' : celsius >= this._config.temperature_warm_from ? 'warm' : 'normal';
+ }
  _climate(id) {
   const s = this._state(id);
   if (!available(s)) return { label: 'Unavailable', kind: 'unavailable', icon: 'mdi:thermostat' };
@@ -141,7 +166,7 @@ class RoomOrbitCard extends HTMLElement {
    return '<article class="tile">' + this._infoButton(slot.id, icon(slot.image) + '<span class="tile-copy"><span class="tile-name" title="' + esc(slot.name) + '">' + esc(slot.name) + '</span><span class="tile-state">' + esc(slot.state) + '</span></span>', 'tile-head') + (buttons ? '<div class="actions">' + buttons + '</div>' : '') + '</article>';
   }).join('') : '';
   const title = c.title || DEFAULTS.title;
-  this.shadowRoot.innerHTML = '<style>' + STYLE + NAV_STYLE + CLIMATE_STYLE + '</style><ha-card data-palette="' + c.palette + '"><div class="shell"><div class="summary ' + (!slots.length ? 'no-shortcuts' : '') + '">' + (c.navigation_path ? '<a class="room-navigation" data-action="navigate" data-entity="" href="' + esc(c.navigation_path) + '" aria-label="Open room view: ' + esc(title) + '"><span class="sr-only">Open ' + esc(title) + '</span></a>' : '') + '<div class="identity"><button class="room-icon ' + (occupied ? 'occupied' : '') + '" data-action="details" data-entity="" aria-label="' + (this._expanded ? 'Hide' : 'Show') + ' room details: ' + esc(title) + '" aria-expanded="' + !!this._expanded + '" title="' + status + ' · Room details">' + icon(c.icon || DEFAULTS.icon) + (c.presence_entity ? '<span class="dot"></span>' : '') + '</button><h2 title="' + esc(title) + '">' + esc(title) + '</h2><span class="sr-only">' + status + '</span><div class="telemetry">' + (readings || '<span class="hint">' + status + '</span>') + '</div>' + badge + '</div>' + (slots.length ? '<section class="shortcuts count-' + slots.length + '" aria-label="Room shortcuts">' + quick + '</section>' : '') + '</div>' + (details ? '<section class="tiles" aria-label="Room details">' + details + '</section>' : '') + (!slots.length && !readings ? '<p class="hint">Add up to four shortcuts in the card editor.</p>' : '') + (this._error ? '<div class="error" role="alert">' + esc(this._error) + '</div>' : '') + '</div></ha-card>';
+  this.shadowRoot.innerHTML = '<style>' + STYLE + NAV_STYLE + CLIMATE_STYLE + TEMPERATURE_STYLE + '</style><ha-card data-palette="' + c.palette + '" data-temperature="' + this._temperatureEffect() + '" data-temperature-animation="' + (c.temperature_effect && c.temperature_animation) + '"><div class="shell"><div class="summary ' + (!slots.length ? 'no-shortcuts' : '') + '">' + (c.navigation_path ? '<a class="room-navigation" data-action="navigate" data-entity="" href="' + esc(c.navigation_path) + '" aria-label="Open room view: ' + esc(title) + '"><span class="sr-only">Open ' + esc(title) + '</span></a>' : '') + '<div class="identity"><button class="room-icon ' + (occupied ? 'occupied' : '') + '" data-action="details" data-entity="" aria-label="' + (this._expanded ? 'Hide' : 'Show') + ' room details: ' + esc(title) + '" aria-expanded="' + !!this._expanded + '" title="' + status + ' · Room details">' + icon(c.icon || DEFAULTS.icon) + (c.presence_entity ? '<span class="dot"></span>' : '') + '</button><h2 title="' + esc(title) + '">' + esc(title) + '</h2><span class="sr-only">' + status + '</span><div class="telemetry">' + (readings || '<span class="hint">' + status + '</span>') + '</div>' + badge + '</div>' + (slots.length ? '<section class="shortcuts count-' + slots.length + '" aria-label="Room shortcuts">' + quick + '</section>' : '') + '</div>' + (details ? '<section class="tiles" aria-label="Room details">' + details + '</section>' : '') + (!slots.length && !readings ? '<p class="hint">Add up to four shortcuts in the card editor.</p>' : '') + (this._error ? '<div class="error" role="alert">' + esc(this._error) + '</div>' : '') + '</div></ha-card>';
  }
  async _activate(id, action) {
   if (action === 'navigate' && id === '') { this._navigate(); return; }

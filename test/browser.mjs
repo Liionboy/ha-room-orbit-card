@@ -115,5 +115,44 @@ try {
  await page.locator('ha-room-orbit-card .quick[data-entity="climate.room"]').click();
  assert.equal(await page.evaluate(() => window.infos.at(-1).entityId), 'climate.room');
  await measure('phone-360-climate-shortcut');
+ await page.emulateMedia({ reducedMotion: 'no-preference' });
+ await page.evaluate(() => { window.card.setConfig({ ...window.card._config, temperature_effect: true, temperature_animation: true }); });
+ const temperatureStyles = async () => page.evaluate(() => {
+  const root = window.card.shadowRoot, card = root.querySelector('ha-card'), shell = root.querySelector('.shell');
+  return { range: card.dataset.temperature, color: getComputedStyle(root.querySelector('.room-icon')).color, animation: getComputedStyle(shell, '::after').animationName, pointerEvents: getComputedStyle(shell, '::after').pointerEvents };
+ });
+ const colors = [];
+ for (const [value, range] of [[21.5, 'cold'], [24, 'normal'], [25, 'warm']]) {
+  await page.evaluate((v) => { window.card.hass.states['sensor.temperature'].state = String(v); window.card.hass = { ...window.card.hass }; }, value);
+  const style = await temperatureStyles(); assert.equal(style.range, range); colors.push(style.color);
+  assert.equal(style.animation, range === 'normal' ? 'none' : 'room-temperature-glow');
+  if (range !== 'normal') assert.equal(style.pointerEvents, 'none');
+  // The original layout assertion uses these fixed readings; verify dimensions independently here.
+  const height = await page.locator('ha-room-orbit-card').evaluate((el) => el.getBoundingClientRect().height); assert.ok(height <= 130);
+  if (output) await page.locator('#grid').screenshot({ path: output + '/temperature-' + range + '-dark.png' });
+ }
+ assert.equal(new Set(colors).size, 3);
+ const opacity = await page.evaluate(() => {
+  const shell = window.card.shadowRoot.querySelector('.shell'); const animation = shell.getAnimations({ subtree: true }).find((a) => a.animationName === 'room-temperature-glow');
+  if (!animation) return null; animation.pause(); animation.currentTime = 0; const low = getComputedStyle(shell, '::after').opacity;
+  animation.currentTime = 1900; return { low, high: getComputedStyle(shell, '::after').opacity };
+ }); assert.ok(opacity); assert.notEqual(opacity.low, opacity.high);
+ // The decorative pulse must not intercept sensor or control taps.
+ const routesBeforeGlowTap = await page.evaluate(() => window.routes.length);
+ await page.locator('ha-room-orbit-card .reading[data-entity="sensor.temperature"]').click();
+ assert.equal(await page.evaluate(() => window.infos.at(-1).entityId), 'sensor.temperature');
+ assert.equal(await page.evaluate(() => window.routes.length), routesBeforeGlowTap);
+ await page.emulateMedia({ reducedMotion: 'reduce' }); assert.equal((await temperatureStyles()).animation, 'none');
+ assert.equal((await temperatureStyles()).range, 'warm');
+ await page.emulateMedia({ reducedMotion: 'no-preference' });
+ await page.evaluate(() => { window.card.setConfig({ ...window.card._config, temperature_animation: false }); });
+ assert.equal((await temperatureStyles()).animation, 'none'); assert.equal((await temperatureStyles()).range, 'warm');
+ await page.evaluate(() => { document.body.classList.remove('dark'); });
+ if (output) await page.locator('#grid').screenshot({ path: output + '/temperature-warm-light.png' });
+ await page.evaluate(() => { window.card.hass.states['sensor.temperature'].state = '21'; window.card.hass = { ...window.card.hass }; });
+ if (output) await page.locator('#grid').screenshot({ path: output + '/temperature-cold-light.png' });
+ await page.evaluate(() => { window.card.setConfig({ ...window.card._config, temperature_effect: false }); });
+ assert.equal((await temperatureStyles()).range, 'normal'); assert.equal((await temperatureStyles()).animation, 'none');
+ console.log('Cold/normal/warm colors, animated opacity, static colors, reduced motion and pointer safety: PASS');
  assert.deepEqual(errors, []); console.log('Quick actions, cover details, More Info, dark theme and read-only: PASS');
 } finally { await browser.close(); }
