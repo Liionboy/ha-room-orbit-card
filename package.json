@@ -1,0 +1,10 @@
+{
+  "name": "ha-room-orbit-card",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node --check ha-room-orbit-card.js",
+    "test": "node --test test/card.test.mjs"
+  }
+}
