@@ -11,6 +11,43 @@ class Element {
 const context = vm.createContext({ HTMLElement: Element, customElements: { get: (n) => registry.get(n), define: (n, c) => registry.set(n, c) }, window: {}, console: { info() {} }, Intl, CustomEvent: class { constructor(type, options) { this.type = type; Object.assign(this, options); } } });
 vm.runInContext(source, context);
 const Card = registry.get('ha-room-orbit-card');
+
+test('humidifier and fan selectors retain all old domains in each slot',()=>{
+ const schema=Card.getConfigForm().schema;
+ assert.deepEqual(Array.from(schema.find(f=>f.name==='climate_entity').selector.entity.domain),['climate','humidifier']);
+ for(let i=1;i<=4;i++) {const ds=Array.from(schema.find(f=>f.name==='entity_'+i).selector.entity.domain);for(const d of ['fan','humidifier','light','climate','cover']) assert.ok(ds.includes(d));assert.doesNotThrow(()=>setup({climate_entity:'humidifier.room',['entity_'+i]:'fan.room'}));}
+ assert.throws(()=>setup({climate_entity:'fan.room'}));
+});
+test('humidifier action transitions are independent of on and update rendered badge',()=>{
+ const {card,calls}=setup({climate_entity:'humidifier.room'});
+ for(const [action,label] of [['humidifying','Humidifying'],['drying','Drying'],['idle','Idle'],['off','Off']]) {card.hass.states['humidifier.room']=state('on',{action});card._update();assert.equal(card._climate('humidifier.room').label,label);assert.ok(card.shadowRoot.innerHTML.includes('climate-status '+action));}
+ card.hass.states['humidifier.room'].attributes.action='idle';card._update();assert.equal(card._climate('humidifier.room').kind,'idle');assert.equal(calls.length,0);
+});
+test('humidifier missing activity, off and unavailable never imply running',()=>{
+ const {card}=setup({climate_entity:'humidifier.room'});
+ for(const [s,label,kind] of [[state('on',{mode:'auto'}),'On','unknown'],[state('off',{action:'humidifying'}),'Off','off'],[state('on',{action:'unexpected'}),'Action unknown','unknown'],[state('on',{action:'__proto__'}),'Action unknown','unknown'],[state('unknown',{action:'drying'}),'Unavailable','unavailable'],[state('unavailable',{action:'humidifying'}),'Unavailable','unavailable'],[undefined,'Unavailable','unavailable']]) {card.hass.states['humidifier.room']=s;card._update();assert.equal(card._climate('humidifier.room').label,label);assert.equal(card._climate('humidifier.room').kind,kind);}
+});
+test('humidifier badge and shortcut are informational and read-only compatible',async()=>{
+ const {card,calls}=setup({climate_entity:'humidifier.room',entity_3:'humidifier.room',navigation_path:'/lovelace/room',read_only:true});card.hass.states['humidifier.room']=state('on',{action:'humidifying'});card._update();assert.match(card.shadowRoot.innerHTML,/quick active climate-shortcut humidifying/);assert.equal(card._actions('humidifier.room').length,0);
+ await card._activate('humidifier.room','toggle');await card._activate('humidifier.room','set_humidity');assert.equal(calls.length,0);await card._activate('humidifier.room','info');assert.equal(card.event.detail.entityId,'humidifier.room');
+ card.hass.states['humidifier.room'].attributes.action='idle';card._update();assert.doesNotMatch(card.shadowRoot.innerHTML,/quick active climate-shortcut idle/);
+});
+function fanSetup(config={}) {const r=setup({entity_3:'fan.room',...config});r.card.hass.states['fan.room']=state('off',{supported_features:48});r.card.hass.services.fan={toggle:{}};r.card._update();return r;}
+test('fan exact domain toggle, default icon and on styling, no speed action',async()=>{
+ const {card,calls}=fanSetup({navigation_path:'/lovelace/room'});assert.match(card.shadowRoot.innerHTML,/mdi:fan/);await card._activate('fan.room','toggle');assert.equal(JSON.stringify(calls),JSON.stringify([['fan','toggle',{entity_id:'fan.room'}]]));card.hass.states['fan.room'].state='on';card._update();assert.match(card.shadowRoot.innerHTML,/quick active [^>]+data-entity="fan.room"/);await card._activate('fan.room','set_percentage');assert.equal(calls.length,1);
+});
+test('fan current state, flags, missing entity and services gate dispatch',async()=>{
+ const {card,calls}=fanSetup();
+ for(const [value,flags,enabled] of [['off',32,true],['on',16,true],['on',32,false],['off',16,false],['off',0,false],['off',undefined,false],['unavailable',48,false],['unknown',48,false],['unexpected',48,false]]) {card.hass.states['fan.room']=state(value,{supported_features:flags});card._update();assert.equal(card._actions('fan.room').length,enabled?1:0);if(!enabled){const n=calls.length;await card._activate('fan.room','toggle');assert.equal(calls.length,n);}}
+ delete card.hass.states['fan.room'];card._update();assert.equal(card._actions('fan.room').length,0);card.hass.states['fan.room']=state('off',{supported_features:48});card.hass.services.fan={};card._update();assert.equal(card._actions('fan.room').length,0);
+});
+test('fan read-only, More Info, busy duplicates and failure recovery',async()=>{
+ const {card,calls}=fanSetup({read_only:true});await card._activate('fan.room','toggle');assert.equal(calls.length,0);await card._activate('fan.room','info');assert.equal(card.event.detail.entityId,'fan.room');card.setConfig({...card._config,read_only:false});let resolve,n=0;card.hass.callService=()=>{n++;return new Promise(r=>resolve=r);};const p=card._activate('fan.room','toggle');await card._activate('fan.room','toggle');assert.equal(n,1);resolve();await p;
+ card.hass.callService=async()=>{throw Error('private fan error');};await card._activate('fan.room','toggle');assert.equal(card._busy.size,0);assert.match(card.shadowRoot.innerHTML,/role="alert"/);assert.doesNotMatch(card.shadowRoot.innerHTML,/private fan error/);card.hass.callService=async(...args)=>calls.push(args);await card._activate('fan.room','toggle');assert.equal(calls.length,1);assert.equal(card._error,'');
+});
+test('fan unrelated updates keep DOM while capability-only changes rerender',()=>{
+ const {card}=fanSetup();let n=0;const render=card._render.bind(card);card._render=()=>{n++;render();};card.hass={...card.hass,states:{...card.hass.states,'sensor.unrelated':state('12')}};assert.equal(n,0);card.hass.states['fan.room'].attributes.supported_features=16;card._update();assert.equal(n,1);assert.equal(card._actions('fan.room').length,0);
+});
 const state = (value, attributes = {}) => ({ state: value, attributes });
 function setup(config = {}) {
  const card = new Card(); const calls = [];
@@ -176,7 +213,7 @@ test('climate can occupy a shortcut and never uses hvac_mode as active heating',
  card.hass.states['climate.room'].attributes.hvac_action = 'heating'; card._update(); assert.match(card.shadowRoot.innerHTML, /quick active climate-shortcut heating/);
  assert.match(card.shadowRoot.innerHTML, /class="quick-climate-label">Heating</);
  assert.throws(() => card.setConfig({ climate_entity: 'switch.room' }));
- assert.ok(Card.getConfigForm().schema.some((field) => field.name === 'climate_entity' && field.selector.entity.domain === 'climate'));
+ assert.ok(Card.getConfigForm().schema.some((field) => field.name === 'climate_entity' && Array.from(field.selector.entity.domain || []).includes('climate')));
 });
 test('temperature colors are opt-in and preserve the chosen palette by default', () => {
  const { card } = setup({ palette: 'lavender' }); card.hass.states['sensor.temperature'].state = '30'; card._update();

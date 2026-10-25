@@ -7,14 +7,14 @@ A compact Home Assistant room tile in the Orbit visual style. Select your own te
 - Compact room icon, room name, inline readings and occupancy dot. No large ring, metric panels or footer.
 - Temperature and humidity with Home Assistant sensor units.
 - Four optional shortcuts, each with an entity, custom name and icon.
-- Light, switch and input-boolean toggles; cover Open / Stop / Close controls gated by supported features and registered services.
-- Quick buttons toggle lights, switches and helpers. A cover shortcut expands its supported controls; informational shortcuts open More Info.
+- Light, switch, input-boolean and capability-gated fan toggles; cover Open / Stop / Close controls gated by supported features and registered services.
+- Quick buttons toggle lights, switches, helpers and supported fans. A cover shortcut expands its supported controls; informational shortcuts open More Info.
 - Tap the room icon to show/hide detailed names, states, More Info headings and all supported controls. Readings also open More Info. Details are collapsed by default.
 - Read-only mode, unavailable-entity handling, duplicate-call protection and visible action errors.
 - Aurora, Ocean, Sunset and Lavender palettes, HA light/dark themes, container-responsive layout and reduced-motion support.
 - Complete visual configuration form (Home Assistant 2026.6+); YAML is also supported.
 - Optional room-view navigation: set navigation_path in the visual editor or YAML, then tap the room name or free card background. Quick buttons, readings and the details icon keep their own actions.
-- Optional thermostat indicator: climate_entity shows real HVAC action, including Heating (warm highlight), Idle (neutral) and Off. Tap it for native HA More Info. No thermostat commands are sent by this card.
+- Optional climate / humidifier indicator: climate_entity accepts climate or humidifier entities and shows reported activity. For thermostats this is real HVAC action, including Heating (warm highlight), Idle (neutral) and Off. Tap it for native HA More Info. No thermostat commands are sent by this card.
 - Optional temperature colors and a gentle glow: below the cold threshold the room uses blue/cyan accents; at or above the warm threshold it uses orange accents. The normal range keeps the selected Orbit palette. Animation can be disabled and respects reduced-motion preferences.
 
 This is a room overview, not a replacement for full light/color or cover-position cards. No discovery or area-wide bulk actions: only explicitly configured entities are shown or controlled. A motion sensor reports its current detection state, not guaranteed long-term occupancy.
@@ -53,7 +53,22 @@ name_4: Window
 read_only: false
 ~~~
 
-All fields are optional. For shortcuts 1–4, use entity_N, name_N and icon_N. Supported domains: light, switch, input_boolean, cover, sensor, binary_sensor, climate. Names and icons default to entity metadata. Unknown palettes fall back to Aurora. Enable read_only to hide device actions while preserving More Info.
+All fields are optional. For shortcuts 1–4, use entity_N, name_N and icon_N. Supported domains: light, switch, input_boolean, cover, sensor, binary_sensor, climate, humidifier, fan. Names and icons default to entity metadata. Unknown palettes fall back to Aurora. Enable read_only to hide device actions while preserving More Info.
+
+### Humidifiers and fans (v1.5.0)
+
+The **Room climate / humidifier (optional)** field accepts either `climate.*` or `humidifier.*` without renaming `climate_entity`. This includes HA dehumidifiers, which use the humidifier domain. Humidifier activity uses `attributes.action`: Humidifying, Drying, Idle or Off; state off overrides a stale action. On without a reported action stays neutral **On**, never inferred Humidifying/Drying. Missing/unknown/unavailable devices are explicit. Tap the badge for the exact native More Info dialog; no humidifier mode, target humidity or power command is sent. Humidifier shortcuts are informational too. On narrow tiles the humidifier badge uses a full-width bottom line to keep activity readable.
+
+Select `fan.*` in any of the four **Shortcut entity** fields. A quick tap sends only `fan.toggle` when the entity advertises the necessary TURN_ON (32, currently off) or TURN_OFF (16, currently on) capability and HA registers the toggle service. Otherwise it opens More Info; read-only and unavailable states never send commands. The active highlight follows on/off. Expand room details and tap the fan heading for native speed/preset/oscillation controls in More Info; this tile does not add those controls itself.
+
+~~~yaml
+type: custom:ha-room-orbit-card
+climate_entity: humidifier.room_air
+entity_1: fan.room_fan
+name_1: Fan
+~~~
+
+Replace the sample IDs with your own entities. Existing thermostat/light/cover configurations are unchanged. If using **Orbit Lovelace**, update the suite and reload; do not load a standalone Room resource alongside it.
 
 ### Temperature colors
 
@@ -97,6 +112,8 @@ Optional browser suite: install Playwright in your own development environment a
 
 - [Minimalist Room Card](https://ui-lovelace-minimalist.github.io/UI/usage/cards/card_room/) — functional inspiration; independent implementation.
 - [HA custom cards and form editor](https://developers.home-assistant.io/docs/frontend/custom-ui/custom-card/)
+- [Humidifier integration](https://www.home-assistant.io/integrations/humidifier/)
+- [Fan integration](https://www.home-assistant.io/integrations/fan/)
 - [Cover integration](https://www.home-assistant.io/integrations/cover/)
 - [HACS Dashboard plugin requirements](https://www.hacs.xyz/docs/publish/plugin/)
 

@@ -13,7 +13,7 @@ try {
   customElements.define('ha-card', class extends HTMLElement {});
   customElements.define('ha-icon', class extends HTMLElement { connectedCallback() { this.style.display = 'inline-flex'; this.style.alignItems = 'center'; this.style.justifyContent = 'center'; this.style.width = 'var(--mdc-icon-size,24px)'; this.style.height = 'var(--mdc-icon-size,24px)'; this.style.flexShrink = '0'; this.innerHTML = '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="currentColor"><path d="M12 3L3 12l9 9 9-9zM12 6l6 6-6 6-6-6z"/></svg>'; } });
  });
- await page.addScriptTag({ content: readFileSync(new URL('../ha-room-orbit-card.js', import.meta.url), 'utf8') });
+ await page.addScriptTag({ content: readFileSync(process.env.CARD_RESOURCE || new URL('../ha-room-orbit-card.js', import.meta.url), 'utf8') });
  await page.evaluate(() => {
   const card = document.createElement('ha-room-orbit-card'); window.card = card; window.calls = []; window.infos = [];
   card.setConfig({ title: 'Living room', navigation_path: '/dashboard-home/living-room', temperature_entity: 'sensor.temperature', humidity_entity: 'sensor.humidity', presence_entity: 'binary_sensor.occupancy', entity_1: 'light.room', entity_2: 'cover.room', entity_3: 'switch.room', entity_4: 'binary_sensor.window' });
@@ -27,13 +27,13 @@ try {
  });
  const output = process.env.SCREENSHOT_DIR;
  if (output) mkdirSync(output, { recursive: true });
- const measure = async (label, width) => {
+ const measure = async (label, width, maxHeight = 130) => {
   const bounds = await page.evaluate(() => {
    const root = window.card.shadowRoot, box = window.card.getBoundingClientRect();
    return { width: box.width, height: box.height, maxRight: Math.max(...[...root.querySelectorAll('button,.summary,.identity,.shortcuts')].map((el) => el.getBoundingClientRect().right - box.left)), readings: [...root.querySelectorAll('.reading-value')].map((el) => ({ text: el.textContent, height: el.getBoundingClientRect().height, scroll: el.scrollWidth, client: el.clientWidth })) };
   });
   assert.ok(bounds.maxRight <= bounds.width + 1, JSON.stringify(bounds));
-  assert.ok(bounds.height <= 130, 'Card too tall: ' + JSON.stringify(bounds));
+  assert.ok(bounds.height <= maxHeight, 'Card too tall: ' + JSON.stringify(bounds));
   for (const value of bounds.readings) { assert.ok(value.height <= 18, JSON.stringify(value)); assert.ok(value.scroll <= value.client + 1, JSON.stringify(value)); }
   assert.equal(bounds.readings[0].text, '24.7 °C'); assert.equal(bounds.readings[1].text, '65.1 %');
   console.log(label + ' PASS: ' + JSON.stringify(bounds));
@@ -154,5 +154,34 @@ try {
  await page.evaluate(() => { window.card.setConfig({ ...window.card._config, temperature_effect: false }); });
  assert.equal((await temperatureStyles()).range, 'normal'); assert.equal((await temperatureStyles()).animation, 'none');
  console.log('Cold/normal/warm colors, animated opacity, static colors, reduced motion and pointer safety: PASS');
+
+ // The same regression can target the standalone script or the final suite resource.
+ await page.setViewportSize({width:1000,height:900});
+ await page.evaluate(()=>{
+  document.querySelector('#grid').style.width='243px';document.querySelector('#grid').style.gridTemplateColumns='1fr';
+  card.setConfig({...card._config,climate_entity:'humidifier.room',entity_3:'fan.room',read_only:false});
+  card.hass={...card.hass,services:{...card.hass.services,fan:{toggle:{}}},states:{...card.hass.states,'humidifier.room':{state:'on',attributes:{action:'humidifying'}},'fan.room':{state:'off',attributes:{supported_features:48,friendly_name:'Room fan'}}}};
+  card.hass.states['sensor.temperature'].state='24.7';card.hass={...card.hass};calls.length=0;infos.length=0;
+ });
+ const room=page.locator('ha-room-orbit-card'), routeCount=await page.evaluate(()=>routes.length);
+ assert.equal(await room.locator('.climate-label').textContent(),'Humidifying');
+ await room.locator('.climate-status').click();assert.deepEqual(await page.evaluate(()=>infos),[{entityId:'humidifier.room'}]);
+ await page.evaluate(()=>{window.fanButton=card.shadowRoot.querySelector('.quick[data-entity="fan.room"]');card.hass={...card.hass,states:{...card.hass.states,'sensor.unrelated':{state:'7'}}};});
+ assert.equal(await page.evaluate(()=>fanButton===card.shadowRoot.querySelector('.quick[data-entity="fan.room"]')),true);
+ await room.locator('.quick[data-entity="fan.room"]').focus();await page.keyboard.press('Enter');
+ assert.deepEqual(await page.evaluate(()=>calls),[['fan','toggle',{entity_id:'fan.room'}]]);
+ assert.equal(await page.evaluate(()=>routes.length),routeCount);
+ await page.evaluate(()=>{card.hass.states['fan.room'].state='on';card.hass={...card.hass};});assert.equal(await room.locator('.quick[data-entity="fan.room"]').evaluate(el=>el.classList.contains('active')),true);
+ await room.locator('.room-icon').click();await room.locator('.tile-head[data-entity="fan.room"]').click();assert.equal(await page.evaluate(()=>infos.at(-1).entityId),'fan.room');await room.locator('.room-icon').click();
+ for(const action of ['humidifying','drying','idle','off']){await page.evaluate(a=>{card.hass.states['humidifier.room'].attributes.action=a;card.hass={...card.hass};},action);assert.equal((await room.locator('.climate-label').textContent()).toLowerCase(),action);}
+ await page.evaluate(()=>{card.hass.states['humidifier.room'].attributes.action='humidifying';card.hass={...card.hass};});
+ for(const width of [440,243,200,164]){await page.evaluate(w=>document.querySelector('#grid').style.width=w+'px',width);await measure('humidifier-fan-'+width,width,148);const m=await room.locator('.climate-label').evaluate(el=>({scroll:el.scrollWidth,client:el.clientWidth,text:el.textContent}));assert.ok(m.scroll<=m.client+1,JSON.stringify(m));}
+ if(output)await room.screenshot({path:output+'/humidifier-fan-light.png'});
+ await page.evaluate(()=>document.body.classList.add('dark'));if(output)await room.screenshot({path:output+'/humidifier-fan-dark.png'});
+ await page.evaluate(()=>card.setConfig({...card._config,read_only:true}));assert.equal(await room.locator('.quick[data-entity="fan.room"]').getAttribute('data-action'),'info');await room.locator('.quick[data-entity="fan.room"]').click();assert.equal(await page.evaluate(()=>infos.at(-1).entityId),'fan.room');
+ await room.locator('.climate-status').click();assert.equal(await page.evaluate(()=>infos.at(-1).entityId),'humidifier.room');assert.equal(await page.evaluate(()=>calls.length),1);
+ await page.evaluate(()=>{card.setConfig({...card._config,read_only:false});card.hass.states['fan.room'].attributes.supported_features=0;card.hass={...card.hass};});assert.equal(await room.locator('.quick[data-entity="fan.room"]').getAttribute('data-action'),'info');
+ await page.evaluate(()=>{card.hass.states['humidifier.room'].state='unavailable';card.hass={...card.hass};});assert.equal(await room.locator('.climate-label').textContent(),'Unavailable');
+ console.log('Humidifier action/More Info, fan keyboard toggle/flags/read-only, no routing cross-trigger: PASS');
  assert.deepEqual(errors, []); console.log('Quick actions, cover details, More Info, dark theme and read-only: PASS');
 } finally { await browser.close(); }
