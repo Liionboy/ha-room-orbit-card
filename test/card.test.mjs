@@ -12,10 +12,48 @@ const context = vm.createContext({ HTMLElement: Element, customElements: { get: 
 vm.runInContext(source, context);
 const Card = registry.get('ha-room-orbit-card');
 
-test('humidifier and fan selectors retain all old domains in each slot',()=>{
+test('every shortcut accepts arbitrary domains but never grants new services',async()=>{
+ const ds=['lock','alarm_control_panel','media_player','vacuum','person','device_tracker','scene','script','automation','button','input_button','select','input_select','number','input_number','text','input_text','timer','counter','calendar','weather','camera','update','date','datetime','time','event','remote','siren','water_heater','valve','image','notify','custom2'];
+ for(const d of ds)for(let i=1;i<=4;i++) {
+  const id=d+'.example';const {card,calls}=setup({entity_1:'',entity_2:'',['entity_'+i]:id});card.hass.states[id]=state('on',{friendly_name:d+' example'});card.hass.services[d]={toggle:{},turn_on:{},unlock:{},alarm_disarm:{},press:{},trigger:{},install:{}};card._update();
+  assert.equal(card._actions(id).length,0,id);assert.match(card.shadowRoot.innerHTML,new RegExp('data-entity="'+id.replace('.','\\.')+'" data-action="info"'));
+  for(const a of ['toggle','turn_on','unlock','alarm_disarm','press','trigger','install'])await card._activate(id,a);assert.equal(calls.length,0,id);
+  await card._activate(id,'info');assert.equal(card.event.detail.entityId,id);
+ }
+});
+test('all 29 native binary device classes use distinct on/off mappings without commands',async()=>{
+ const classes=['battery','battery_charging','carbon_monoxide','cold','connectivity','door','garage_door','gas','glass_break','heat','light','lock','moisture','motion','moving','occupancy','opening','plug','power','presence','problem','running','safety','smoke','sound','tamper','update','vibration','window'];
+ assert.deepEqual(Array.from(vm.runInContext('Object.keys(BINARY_ICONS)',context)).sort(),classes.sort());
+ const {card,calls}=setup({entity_1:'binary_sensor.example'});
+ for(const dc of classes)for(const value of ['on','off']){card.hass.states['binary_sensor.example']=state(value,{device_class:dc});card._update();assert.match(card._entityIcon('binary_sensor.example'),/^mdi:/);assert.equal(card._actions('binary_sensor.example').length,0);await card._activate('binary_sensor.example','toggle');}
+ assert.equal(calls.length,0);
+ for(const [dc,on,off]of [['door','door-open','door-closed'],['window','window-open','window-closed'],['motion','motion-sensor','motion-sensor-off'],['smoke','smoke-detector-variant-alert','smoke-detector-variant'],['moisture','water','water-off'],['connectivity','check-network-outline','close-network-outline']]){for(const [value,image]of [['on',on],['off',off]]){card.hass.states['binary_sensor.example']=state(value,{device_class:dc});card._update();assert.equal(card._entityIcon('binary_sensor.example'),'mdi:'+image);assert.ok(card.shadowRoot.innerHTML.includes('icon="mdi:'+image+'"'));}}
+});
+test('binary unknown, missing and custom classes remain neutral and safe',()=>{
+ const {card}=setup({entity_1:'binary_sensor.example'});
+ for(const value of ['unknown','unavailable','unexpected']){card.hass.states['binary_sensor.example']=state(value,{device_class:'door'});card._update();assert.equal(card._entityIcon('binary_sensor.example'),'mdi:help-circle-outline');assert.doesNotMatch(card.shadowRoot.innerHTML,/quick active [^>]+data-entity="binary_sensor.example"/);}
+ delete card.hass.states['binary_sensor.example'];card._update();assert.equal(card._entityIcon('binary_sensor.example'),'mdi:help-circle-outline');
+ for(const dc of ['custom_class','__proto__','constructor']){card.hass.states['binary_sensor.example']=state('on',{device_class:dc});assert.equal(card._entityIcon('binary_sensor.example'),'mdi:checkbox-marked-circle');}
+});
+test('icon/name overrides win, generic domains have neutral icons and escaping',()=>{
+ const {card}=setup({entity_1:'binary_sensor.example',icon_1:'mdi:star',name_1:'<img src=x>'});card.hass.states['binary_sensor.example']=state('off',{device_class:'door',icon:'mdi:heart'});card._update();assert.ok(card.shadowRoot.innerHTML.includes('icon="mdi:star"'));assert.doesNotMatch(card.shadowRoot.innerHTML,/<img/);assert.match(card.shadowRoot.innerHTML,/&lt;img/);
+ card.setConfig({...card._config,icon_1:''});assert.equal(card._entityIcon('binary_sensor.example'),'mdi:heart');
+ card.hass.states['binary_sensor.example'].attributes.icon='<script>';card._update();assert.doesNotMatch(card.shadowRoot.innerHTML,/<script>/);
+ assert.equal(card._entityIcon('lock.example'),'mdi:lock');assert.equal(card._entityIcon('custom2.example'),'mdi:bookmark-outline');assert.equal(card._entityIcon('__proto__.example'),'mdi:bookmark-outline');
+});
+test('any entity read-only and missing states retain More Info and exact state formatting',async()=>{
+ const {card,calls}=setup({entity_1:'lock.example',read_only:true});card.hass.states['lock.example']=state('locked',{friendly_name:'Room lock'});card.hass.formatEntityState=s=>s.state==='locked'?'Locked':s.state;card._update();assert.match(card.shadowRoot.innerHTML,/Locked/);await card._activate('lock.example','info');assert.equal(card.event.detail.entityId,'lock.example');await card._activate('lock.example','unlock');assert.equal(calls.length,0);
+ card.hass.states['lock.example'].state='unavailable';card._update();assert.match(card.shadowRoot.innerHTML,/Unavailable/);delete card.hass.states['lock.example'];card._update();assert.match(card.shadowRoot.innerHTML,/Not found/);
+});
+test('shortcut validation still rejects malformed IDs and dedicated fields stay scoped',()=>{
+ const {card}=setup();for(const id of ['lock.x y','lock.x" onclick="x','lock.','lock.x.y','/lock.x',{},42])assert.throws(()=>card.setConfig({entity_1:id}));
+ for(const c of [{temperature_entity:'lock.example'},{humidity_entity:'fan.example'},{presence_entity:'sensor.example'},{climate_entity:'alarm_control_panel.example'}])assert.throws(()=>card.setConfig(c));
+});
+
+test('humidifier badge selector and unrestricted shortcut selectors',()=>{
  const schema=Card.getConfigForm().schema;
  assert.deepEqual(Array.from(schema.find(f=>f.name==='climate_entity').selector.entity.domain),['climate','humidifier']);
- for(let i=1;i<=4;i++) {const ds=Array.from(schema.find(f=>f.name==='entity_'+i).selector.entity.domain);for(const d of ['fan','humidifier','light','climate','cover']) assert.ok(ds.includes(d));assert.doesNotThrow(()=>setup({climate_entity:'humidifier.room',['entity_'+i]:'fan.room'}));}
+ for(let i=1;i<=4;i++) {assert.deepEqual(Object.keys(schema.find(f=>f.name==='entity_'+i).selector.entity),[]);assert.doesNotThrow(()=>setup({climate_entity:'humidifier.room',['entity_'+i]:'fan.room'}));}
  assert.throws(()=>setup({climate_entity:'fan.room'}));
 });
 test('humidifier action transitions are independent of on and update rendered badge',()=>{
@@ -130,7 +168,7 @@ test('switch and helper use their respective toggle domains', async () => {
 test('informational sensors and configuration validation', () => {
  const { card } = setup({ entity_1: 'sensor.temperature', palette: 'invalid' });
  assert.equal(card._actions('sensor.temperature').length, 0); assert.equal(card._config.palette, 'aurora');
- for (const config of [null, [], { entity_1: 'lock.door' }, { entity_1: {} }, { presence_entity: 'sensor.temp' }]) assert.throws(() => card.setConfig(config));
+ for (const config of [null, [], { entity_1: 'bad entity' }, { entity_1: {} }, { presence_entity: 'sensor.temp' }]) assert.throws(() => card.setConfig(config));
 });
 test('manifest, version and registration agree', () => {
  const manifest = JSON.parse(readFileSync(new URL('../hacs.json', import.meta.url)));

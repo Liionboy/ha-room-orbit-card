@@ -183,5 +183,28 @@ try {
  await page.evaluate(()=>{card.setConfig({...card._config,read_only:false});card.hass.states['fan.room'].attributes.supported_features=0;card.hass={...card.hass};});assert.equal(await room.locator('.quick[data-entity="fan.room"]').getAttribute('data-action'),'info');
  await page.evaluate(()=>{card.hass.states['humidifier.room'].state='unavailable';card.hass={...card.hass};});assert.equal(await room.locator('.climate-label').textContent(),'Unavailable');
  console.log('Humidifier action/More Info, fan keyboard toggle/flags/read-only, no routing cross-trigger: PASS');
+
+ await page.evaluate(()=>{
+  card.setConfig({...card._config,climate_entity:'',entity_1:'binary_sensor.door',entity_2:'binary_sensor.window',entity_3:'binary_sensor.smoke',entity_4:'binary_sensor.motion',read_only:false});
+  for(const dc of ['door','window','smoke','motion'])card.hass.states['binary_sensor.'+dc]={state:'on',attributes:{device_class:dc,friendly_name:dc+' sensor'}};
+  card.hass.formatEntityState=s=>s.attributes.device_class==='door'?(s.state==='on'?'Open':'Closed'):s.state;
+  card.hass={...card.hass};calls.length=0;infos.length=0;document.body.classList.remove('dark');
+ });
+ for(const [dc,image]of [['door','door-open'],['window','window-open'],['smoke','smoke-detector-variant-alert'],['motion','motion-sensor']]){
+  const quick=room.locator('.quick[data-entity="binary_sensor.'+dc+'"]');assert.equal(await quick.getAttribute('data-action'),'info');assert.equal(await quick.locator('ha-icon').getAttribute('icon'),'mdi:'+image);await quick.click();assert.equal(await page.evaluate(()=>infos.at(-1).entityId),'binary_sensor.'+dc);
+ }
+ assert.match(await room.locator('.quick[data-entity="binary_sensor.door"]').getAttribute('aria-label'),/Open/);
+ await page.evaluate(()=>{card.hass.states['binary_sensor.door'].state='off';card.hass={...card.hass};});assert.equal(await room.locator('.quick[data-entity="binary_sensor.door"] ha-icon').getAttribute('icon'),'mdi:door-closed');
+ await page.evaluate(()=>{card.hass.states['binary_sensor.door'].state='unavailable';card.hass={...card.hass};});assert.equal(await room.locator('.quick[data-entity="binary_sensor.door"] ha-icon').getAttribute('icon'),'mdi:help-circle-outline');assert.equal(await room.locator('.quick[data-entity="binary_sensor.door"]').evaluate(el=>el.classList.contains('active')),false);
+ for(const w of [440,243,200,164]){await page.evaluate(w=>document.querySelector('#grid').style.width=w+'px',w);await measure('generic-binary-'+w,w);}
+ if(output)await room.screenshot({path:output+'/generic-binary-light.png'});await page.evaluate(()=>document.body.classList.add('dark'));if(output)await room.screenshot({path:output+'/generic-binary-dark.png'});
+ const beforeGenericRoutes=await page.evaluate(()=>routes.length);
+ for(const ids of [['lock.room','alarm_control_panel.room','button.room','update.room'],['person.example','media_player.room','vacuum.room','select.room'],['number.room','scene.room','script.room','custom2.room']]){
+  await page.evaluate(ids=>{const c={...card._config};ids.forEach((id,i)=>{c['entity_'+(i+1)]=id;card.hass.states[id]={state:'idle',attributes:{friendly_name:id}};});card.setConfig(c);},ids);
+  for(const id of ids){const b=room.locator('.quick[data-entity="'+id+'"]');assert.equal(await b.getAttribute('data-action'),'info');await b.focus();await page.keyboard.press('Enter');assert.equal(await page.evaluate(()=>infos.at(-1).entityId),id);}
+ }
+ await page.evaluate(()=>{card.setConfig({...card._config,read_only:true});});await room.locator('.quick').first().click();assert.equal(await page.evaluate(()=>infos.at(-1).entityId),'number.room');
+ assert.deepEqual(await page.evaluate(()=>calls),[]);assert.equal(await page.evaluate(()=>routes.length),beforeGenericRoutes);
+ console.log('Arbitrary domains + sensitive entities open exact More Info only; binary class/state icons and keyboard/no-route checks: PASS');
  assert.deepEqual(errors, []); console.log('Quick actions, cover details, More Info, dark theme and read-only: PASS');
 } finally { await browser.close(); }

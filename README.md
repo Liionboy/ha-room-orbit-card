@@ -6,7 +6,7 @@ A compact Home Assistant room tile in the Orbit visual style. Select your own te
 
 - Compact room icon, room name, inline readings and occupancy dot. No large ring, metric panels or footer.
 - Temperature and humidity with Home Assistant sensor units.
-- Four optional shortcuts, each with an entity, custom name and icon.
+- Four optional shortcuts accepting any entity domain, each with a custom name and icon.
 - Light, switch, input-boolean and capability-gated fan toggles; cover Open / Stop / Close controls gated by supported features and registered services.
 - Quick buttons toggle lights, switches, helpers and supported fans. A cover shortcut expands its supported controls; informational shortcuts open More Info.
 - Tap the room icon to show/hide detailed names, states, More Info headings and all supported controls. Readings also open More Info. Details are collapsed by default.
@@ -53,7 +53,24 @@ name_4: Window
 read_only: false
 ~~~
 
-All fields are optional. For shortcuts 1–4, use entity_N, name_N and icon_N. Supported domains: light, switch, input_boolean, cover, sensor, binary_sensor, climate, humidifier, fan. Names and icons default to entity metadata. Unknown palettes fall back to Aurora. Enable read_only to hide device actions while preserving More Info.
+All fields are optional. For shortcuts 1–4, use entity_N, name_N and icon_N. Any valid entity domain is accepted in all four shortcut slots, including all binary_sensor types and custom integration domains. Names and icons default to entity metadata. Unknown palettes fall back to Aurora. Enable read_only to hide device actions while preserving More Info.
+
+### Any entity shortcuts (v1.6.0)
+
+The four **Shortcut entity** selectors are unrestricted. Choose any Home Assistant entity: binary sensors, sensors, people, media players, vacuums, locks, alarm panels, selects/numbers/helpers, scenes/scripts/buttons, calendars, cameras or a custom integration domain. This expands accepted entity types, not the number of slots (still four). Dedicated temperature/humidity/presence/climate fields retain their existing domain filters.
+
+Only the existing light/switch/input_boolean/fan power toggles and capability-gated cover actions are direct controls. Every other domain is informational: tap opens that exact entity’s native More Info dialog, subject to the HA user’s permissions and the domain’s available dialog. The tile never infers a toggle, unlock, disarm, press, run, install or other service from a generic entity. A scene/script/button shortcut opens More Info rather than running it.
+
+All binary sensors are supported. Default icons follow HA’s29 standard device classes and on/off state (door, window, motion, smoke, leak/moisture, connectivity, battery and others). Unknown/unavailable/missing binary state uses a neutral question icon, never a false closed/safe state. A custom device class uses a generic binary icon. An explicit slot icon wins over entity metadata, which wins over defaults. Other domains use a suitable generic icon with a neutral fallback for custom domains. State labels use HA formatting when available; these are visual status indicators, not alarm certification.
+
+~~~yaml
+entity_1: binary_sensor.room_window
+entity_2: binary_sensor.room_smoke
+entity_3: media_player.room_tv
+entity_4: person.example
+~~~
+
+Use your own entity IDs. Existing YAML and the compact layout are retained.
 
 ### Humidifiers and fans (v1.5.0)
 
@@ -112,6 +129,7 @@ Optional browser suite: install Playwright in your own development environment a
 
 - [Minimalist Room Card](https://ui-lovelace-minimalist.github.io/UI/usage/cards/card_room/) — functional inspiration; independent implementation.
 - [HA custom cards and form editor](https://developers.home-assistant.io/docs/frontend/custom-ui/custom-card/)
+- [Binary sensor classes](https://www.home-assistant.io/integrations/binary_sensor/)
 - [Humidifier integration](https://www.home-assistant.io/integrations/humidifier/)
 - [Fan integration](https://www.home-assistant.io/integrations/fan/)
 - [Cover integration](https://www.home-assistant.io/integrations/cover/)
